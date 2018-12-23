@@ -4,6 +4,16 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#ifdef OPENCL
+    int BLOCK=16;
+    cl_platform_id *clPlatform=0;
+    cl_device_id *clDevice=0;
+    cl_context *clContext=0;
+    cl_command_queue *clCommandQueue=0;
+    cl_program *clProgram=0;
+    cl_kernel *clKernel=0;
+#endif
+
 extern void predict_classifier(char *datacfg, char *cfgfile, char *weightfile, char *filename, int top);
 extern void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filename, float thresh, float hier_thresh, char *outfile, int fullscreen);
 extern void run_yolo(int argc, char **argv);
@@ -417,6 +427,23 @@ int main(int argc, char **argv)
     if(gpu_index >= 0){
         cuda_set_device(gpu_index);
     }
+#endif
+#ifdef OPENCL
+    clPlatform=malloc(sizeof(cl_platform_id));
+    clDevice=malloc(sizeof(cl_device_id));
+    clContext=malloc(sizeof(cl_context));
+    clCommandQueue=malloc(sizeof(cl_command_queue));
+    clProgram=malloc(sizeof(cl_program));
+    clKernel=malloc(sizeof(cl_kernel));
+    char *fileName="/home/fengqi/darknet/src/opencl_kernel.cl";
+    int r=CreateTool(clPlatform,clDevice,clContext,clCommandQueue,clProgram,fileName);
+    if(r!=0){
+        printf("build opencl environment failed, use cpu.\n");
+        clean(clContext,clCommandQueue,clProgram,clKernel);
+        return -1;
+        #undef OPENCL
+    }
+    fprintf(stderr,"start opencl...\n");
 #endif
 
     if (0 == strcmp(argv[1], "average")){
