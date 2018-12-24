@@ -1,3 +1,5 @@
+
+//im2col.c
 __kernel void im2col_opencl(int n,__global float *data_im,int height,int width,
         int ksize,int pad,int stride,int height_col,int width_col,__global float *data_col)
 {
@@ -5,7 +7,7 @@ __kernel void im2col_opencl(int n,__global float *data_im,int height,int width,
     int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
 
     int index = x_+y_*m_+z_*m_*n_;
-    for(; index < n; index += m_*n_*k_){//m_*n_*k_){
+    for(; index < n; index += m_*n_*k_){
         int w_out = index % width_col;
         int h_index = index / width_col;
         int h_out = h_index % height_col;
@@ -28,7 +30,7 @@ __kernel void im2col_opencl(int n,__global float *data_im,int height,int width,
         }
     }
 }
-
+//col2im.c
 __kernel void col2im_opencl(int n,__global float *data_col,int height,int width,
         int ksize,int pad,int stride,int height_col,int width_col,__global float *data_im)
 {
@@ -58,7 +60,7 @@ __kernel void col2im_opencl(int n,__global float *data_col,int height,int width,
         data_im[index] += val;
     }
 }
-
+//gemm.c
 __kernel void gemm_nn_opencl(int M,int N,int K,float ALPHA,__global float *weight,
         int lda,__global float *input,int ldb,__global float *output,int ldc)
 {
@@ -66,17 +68,64 @@ __kernel void gemm_nn_opencl(int M,int N,int K,float ALPHA,__global float *weigh
     int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
 
     int index = x_+y_*m_+z_*m_*n_;
-    
-    if(index<M*N){
-        int row = index / N;
-        int col = index % N;
+
+    if(index<M*ldc){
+        int row = index / ldc;
+        int col = index % ldc;
         for(int i = 0; i < K; i++){
-            float A_PART = ALPHA * weight[row*lda+i];
+            output[index] += ALPHA * weight[row*lda+i] * input[i*ldb+col];
+        }
+    }
+}
+//gemm.c
+__kernel void gemm_nt_opencl(int M,int N,int K,float ALPHA,__global float *weight,
+        int lda,__global float *input,int ldb,__global float *output,int ldc)
+{
+    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
+    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+
+    int index = x_+y_*m_+z_*m_*n_;
+
+    if(index<M*ldc){
+        int row = index / ldc;
+        int col = index % ldc;
+        float sum=0;
+        for(int i = 0; i < K; i++){
+            sum += ALPHA*weight[row*lda+i]*input[col*ldb+i];
+        }
+        output[index] += sum;
+    }
+}
+//gemm.c
+__kernel void gemm_tn_opencl(int M,int N,int K,float ALPHA,__global float *weight,
+        int lda,__global float *input,int ldb,__global float *output,int ldc)
+{
+    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
+    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+
+    int index = x_+y_*m_+z_*m_*n_;
+
+    if(index<M*ldc){
+        int row = index / ldc;
+        int col = index % ldc;
+        for(int i = 0; i < K; i++){
+            float A_PART = ALPHA*weight[i*lda+row];
             output[row*ldc+col] += A_PART*input[i*ldb+col];
         }
     }
 }
-            
+//gemm.c
+__kernel void gemm_opencl(int M,int ldc,__global float *output,float BETA)
+{
+    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
+    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+
+    int index = x_+y_*m_+z_*m_*n_;
+
+    if(index<M*ldc){
+        output[index] *= BETA;
+    }
+}
 
 
 

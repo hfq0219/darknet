@@ -17,16 +17,14 @@ void col2im_cpu(float* data_col,
          int ksize,  int stride, int pad, float* data_im) 
 {
 #ifdef OPENCL
-    //fprintf(stderr,"\nwork with opencl col2im...\n");
     extern cl_context *clContext;
     extern cl_command_queue *clCommandQueue;
     extern cl_program *clProgram;
     extern cl_kernel *clKernel;
-    // We are going to launch channels * height_col * width_col kernels, each
-    // kernel responsible for copying a single-channel grid.
-    cl_int height_col = (height + 2 * pad - ksize) / stride + 1;
-    cl_int width_col = (width + 2 * pad - ksize) / stride + 1;
-    cl_int num_kernels = channels * height * width;
+
+    int height_col = (height + 2 * pad - ksize) / stride + 1;
+    int width_col = (width + 2 * pad - ksize) / stride + 1;
+    int num_kernels = channels * height * width;
     int size_im=channels*width*height;
     int size_col=num_kernels*ksize*ksize;
     size_t globalWorkSize[3],localWorkSize[3];
@@ -58,7 +56,6 @@ void col2im_cpu(float* data_col,
     }
     clEnqueueReadBuffer(*clCommandQueue,data_im_opencl,CL_TRUE,0,sizeof(float)*size_im,data_im,0,NULL,NULL);
 #else
-    //fprintf(stderr,"\nwork with cpu col2im...\n");
     int c,h,w;
     int height_col = (height + 2*pad - ksize) / stride + 1;
     int width_col = (width + 2*pad - ksize) / stride + 1;
