@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 #ifdef OPENCL
-    int CL_BLOCK=1;
+    int CL_BLOCK=32;
     cl_platform_id *clPlatform=0;
     cl_device_id *clDevice=0;
     cl_context *clContext=0;
@@ -440,8 +440,7 @@ int main(int argc, char **argv)
     if(r!=0){
         printf("build opencl environment failed, use cpu.\n");
         clean(clContext,clCommandQueue,clProgram,clKernel);
-        return -1;
-        #undef OPENCL
+        exit(-1);
     }
     fprintf(stderr,"start opencl...\n");
 #endif

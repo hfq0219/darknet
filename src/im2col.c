@@ -18,7 +18,7 @@ void im2col_cpu(float* data_im,
      int ksize,  int stride, int pad, float* data_col) 
 {
 #ifdef OPENCL
-    fprintf(stderr,"\nwork with opencl...\n");
+    //fprintf(stderr,"\nwork with opencl...\n");
     extern cl_context *clContext;
     extern cl_command_queue *clCommandQueue;
     extern cl_program *clProgram;
@@ -58,11 +58,11 @@ void im2col_cpu(float* data_im,
         exit(-1);
     }
     clEnqueueReadBuffer(*clCommandQueue,data_col_opencl,CL_TRUE,0,sizeof(float)*size_col,data_col,0,NULL,NULL);
-    clReleaseMemObject(data_im_opencl);
-    clReleaseMemObject(data_col_opencl);
-    clReleaseKernel(*clKernel);
+    //clReleaseMemObject(data_im_opencl);
+    //clReleaseMemObject(data_col_opencl);
+    //clReleaseKernel(*clKernel);
 #else
-    fprintf(stderr,"\nwork with cpu...\n");
+    //fprintf(stderr,"\nwork with cpu...\n");
     int c,h,w;
     int height_col = (height + 2*pad - ksize) / stride + 1;
     int width_col = (width + 2*pad - ksize) / stride + 1;

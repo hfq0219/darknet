@@ -17,7 +17,7 @@ void col2im_cpu(float* data_col,
          int ksize,  int stride, int pad, float* data_im) 
 {
 #ifdef OPENCL
-    fprintf(stderr,"\nwork with opencl col2im...\n");
+    //fprintf(stderr,"\nwork with opencl col2im...\n");
     extern cl_context *clContext;
     extern cl_command_queue *clCommandQueue;
     extern cl_program *clProgram;
@@ -58,7 +58,7 @@ void col2im_cpu(float* data_col,
     }
     clEnqueueReadBuffer(*clCommandQueue,data_im_opencl,CL_TRUE,0,sizeof(float)*size_im,data_im,0,NULL,NULL);
 #else
-    fprintf(stderr,"\nwork with cpu col2im...\n");
+    //fprintf(stderr,"\nwork with cpu col2im...\n");
     int c,h,w;
     int height_col = (height + 2*pad - ksize) / stride + 1;
     int width_col = (width + 2*pad - ksize) / stride + 1;

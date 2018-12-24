@@ -77,7 +77,7 @@ void gemm_nn(int M, int N, int K, float ALPHA,
         float *C, int ldc)
 {
 #ifdef OPENCL
-    fprintf(stderr,"\nwork with opencl gemmnn...\n");
+    //fprintf(stderr,"\nwork with opencl gemmnn...\n");
     extern cl_context *clContext;
     extern cl_command_queue *clCommandQueue;
     extern cl_program *clProgram;
@@ -116,13 +116,12 @@ void gemm_nn(int M, int N, int K, float ALPHA,
         exit(-1);
     }
     clEnqueueReadBuffer(*clCommandQueue,data_output,CL_TRUE,0,sizeof(float)*size_output,C,0,NULL,NULL);
-    fprintf(stderr,"\n");
-    clReleaseMemObject(data_input);
-    clReleaseMemObject(data_weight);
-    clReleaseMemObject(data_output);
-    clReleaseKernel(*clKernel);
+    //clReleaseMemObject(data_input);
+    //clReleaseMemObject(data_weight);
+    //clReleaseMemObject(data_output);
+    //clReleaseKernel(*clKernel);
 #else
-    fprintf(stderr,"\nwork with cpu gemmnn...\n");
+    //fprintf(stderr,"\nwork with cpu gemmnn...\n");
     int i,j,k;
     #pragma omp parallel for
     for(i = 0; i < M; ++i){
