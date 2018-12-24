@@ -18,7 +18,6 @@ void col2im_cpu(float* data_col,
 {
 #ifdef OPENCL
     fprintf(stderr,"\nwork with opencl col2im...\n");
-    extern int BLOCK;
     extern cl_context *clContext;
     extern cl_command_queue *clCommandQueue;
     extern cl_program *clProgram;
@@ -30,8 +29,8 @@ void col2im_cpu(float* data_col,
     cl_int num_kernels = channels * height * width;
     int size_im=channels*width*height;
     int size_col=num_kernels*ksize*ksize;
-    size_t globalWorkSize[1]={(num_kernels+BLOCK-1)/BLOCK};
-    size_t localWorkSize[1]={BLOCK};
+    size_t globalWorkSize[3],localWorkSize[3];
+    setWorkItemSize(num_kernels,globalWorkSize,localWorkSize);
     cl_int err;
     *clKernel=clCreateKernel(*clProgram, "col2im_opencl", &err);
     if(err!=CL_SUCCESS) {fprintf(stderr,"kernel error\n");exit(-1);}
@@ -52,7 +51,7 @@ void col2im_cpu(float* data_col,
         clean(clContext,clCommandQueue,clProgram,clKernel);
         exit(-1);
     }
-    err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,1,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
+    err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
     if(err!=CL_SUCCESS){
         fprintf(stderr,"\ncompute error:%d\n",err);
         exit(-1);

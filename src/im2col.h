@@ -3,6 +3,7 @@
 
 #ifdef OPENCL
 #include "CL/cl.h"
+#include "opencl_tool.h"
 #endif
 
 void im2col_cpu(float* data_im,

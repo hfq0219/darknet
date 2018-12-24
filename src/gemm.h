@@ -1,6 +1,11 @@
 #ifndef GEMM_H
 #define GEMM_H
 
+#ifdef OPENCL
+        #include "CL/cl.h"
+        #include "opencl_tool.h"
+#endif
+
 void gemm_bin(int M, int N, int K, float ALPHA, 
         char  *A, int lda, 
         float *B, int ldb,

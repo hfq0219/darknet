@@ -1,8 +1,11 @@
 __kernel void im2col_opencl(int n,__global float *data_im,int height,int width,
         int ksize,int pad,int stride,int height_col,int width_col,__global float *data_col)
 {
-    int index = get_global_id(0);
-    for(; index < n; index += get_global_size(0)){
+    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
+    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+
+    int index = x_+y_*m_;
+    for(; index < n; index += m_*n_){
         int w_out = index % width_col;
         int h_index = index / width_col;
         int h_out = h_index % height_col;
@@ -29,8 +32,11 @@ __kernel void im2col_opencl(int n,__global float *data_im,int height,int width,
 __kernel void col2im_opencl(int n,__global float *data_col,int height,int width,
         int ksize,int pad,int stride,int height_col,int width_col,__global float *data_im)
 {
-    int index = get_global_id(0);
-    for(; index < n; index += get_global_size(0)){
+    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
+    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+
+    int index = x_+y_*m_;
+    for(; index < n; index += m_*n_){
         float val = 0;
         int w = index % width + pad;
         int h = (index / width) % height + pad;
@@ -53,7 +59,23 @@ __kernel void col2im_opencl(int n,__global float *data_col,int height,int width,
     }
 }
 
+__kernel void gemm_nn_opencl(int M,int N,int K,float ALPHA,__global float *weight,
+        int lda,__global float *input,int ldb,__global float *output,int ldc)
+{
+    int xc=get_global_id(0),yc=get_global_id(1),zc=get_global_id(2);
+    int mc=get_global_size(0),nc=get_global_size(1),kc=get_global_size(2);
 
+    int index = xc + yc * mc + zc * mc * nc;
+    int row = index / N;
+    int col = index % N;
+    if(row<M && col<N){
+        for(int i = 0; i < K; i++){
+            float A_PART = ALPHA * weight[row*lda+i];
+            output[row*ldc+col] += A_PART*input[i*ldb+col];
+        }
+    }
+}
+            
 
 
 

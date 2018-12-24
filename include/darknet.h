@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
-//#define GPU
+
 #ifdef GPU
     #define BLOCK 512
 
@@ -16,7 +16,7 @@
     #include "cudnn.h"
     #endif
 #endif
-//#define OPENCL
+
 #ifdef OPENCL
     #include "CL/cl.h"
     #include "opencl_tool.h"

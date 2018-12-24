@@ -1,5 +1,5 @@
 #include "opencl_tool.h"
-
+#include <math.h>
 
 /**创建平台、设备、上下文、命令队列、程序对象,对大部分 OpenCL 程序相同。
  */
@@ -77,4 +77,40 @@ void clean(cl_context *context,cl_command_queue *commandQueue,cl_program *progra
         clReleaseProgram(*program);
     if(*context!=0)
         clReleaseContext(*context);
+}
+
+void setWorkItemSize(int kernel_num,size_t global_work_size[3],size_t local_work_size[3]){
+    extern int CL_BLOCK;
+    local_work_size[0]=CL_BLOCK;
+    local_work_size[1]=1;
+    local_work_size[2]=1;
+    if(kernel_num>1024*1024*64){
+        fprintf(stderr,"\nkernel nums too large!!!\n");
+        exit(-1);
+    }
+    if(kernel_num>1024*1024){
+        int dim0=1024/CL_BLOCK;
+        int dim1=1024;
+        int dim2=(kernel_num-1)/(1024*1024)+1;
+        global_work_size[0]=dim0;
+        global_work_size[1]=dim1;
+        global_work_size[2]=dim2;
+        fprintf(stderr,"\n%d,%d,%d\n",dim0,dim1,dim2);
+        return;
+    }
+    else if(kernel_num>1024){
+        int dim0=1024/CL_BLOCK;
+        int dim1=(kernel_num-1)/(1024)+1;
+        global_work_size[0]=dim0;
+        global_work_size[1]=dim1;
+        global_work_size[2]=1;
+        return;
+    }
+    else{
+        int dim0=(kernel_num-1)/CL_BLOCK+1;
+        global_work_size[0]=dim0;
+        global_work_size[1]=1;
+        global_work_size[2]=1;
+        return;
+    }
 }

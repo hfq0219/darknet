@@ -76,6 +76,53 @@ void gemm_nn(int M, int N, int K, float ALPHA,
         float *B, int ldb,
         float *C, int ldc)
 {
+#ifdef OPENCL
+    fprintf(stderr,"\nwork with opencl gemmnn...\n");
+    extern cl_context *clContext;
+    extern cl_command_queue *clCommandQueue;
+    extern cl_program *clProgram;
+    extern cl_kernel *clKernel;
+    // We are going to launch channels * height_col * width_col kernels, each
+    // kernel responsible for copying a single-channel grid.
+    int size_input = N * K;
+    int size_weight = M * K;
+    int size_output = M * N;
+    size_t globalWorkSize[3],localWorkSize[3];
+    setWorkItemSize(size_output,globalWorkSize,localWorkSize);
+    cl_int err;
+    *clKernel=clCreateKernel(*clProgram, "gemm_nn_opencl", &err);
+    if(err!=CL_SUCCESS) {fprintf(stderr,"kernel error\n");exit(-1);}
+    cl_mem data_input=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*size_input, B, NULL);
+    cl_mem data_weight=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*size_weight, A, NULL);
+    cl_mem data_output=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*size_output, C, NULL);
+    err=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &M);
+    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &N);
+    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &K);
+    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_float), &ALPHA);
+    err|=clSetKernelArg(*clKernel, 4, sizeof(cl_mem), &data_weight);
+    err|=clSetKernelArg(*clKernel, 5, sizeof(cl_int), &lda);
+    err|=clSetKernelArg(*clKernel, 6, sizeof(cl_mem), &data_input);
+    err|=clSetKernelArg(*clKernel, 7, sizeof(cl_int), &ldb);
+    err|=clSetKernelArg(*clKernel, 8, sizeof(cl_mem), &data_output);
+    err|=clSetKernelArg(*clKernel, 9, sizeof(cl_int), &ldc);
+    if(err!=CL_SUCCESS||data_weight==NULL||data_input==NULL||data_output==NULL){
+        fprintf(stderr,"kernel arg set failed.\n");
+        clean(clContext,clCommandQueue,clProgram,clKernel);
+        exit(-1);
+    }
+    err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
+    if(err!=CL_SUCCESS){
+        fprintf(stderr,"\ngemm compute error:%d\n",err);
+        exit(-1);
+    }
+    clEnqueueReadBuffer(*clCommandQueue,data_output,CL_TRUE,0,sizeof(float)*size_output,C,0,NULL,NULL);
+    fprintf(stderr,"\n");
+    clReleaseMemObject(data_input);
+    clReleaseMemObject(data_weight);
+    clReleaseMemObject(data_output);
+    clReleaseKernel(*clKernel);
+#else
+    fprintf(stderr,"\nwork with cpu gemmnn...\n");
     int i,j,k;
     #pragma omp parallel for
     for(i = 0; i < M; ++i){
@@ -86,6 +133,7 @@ void gemm_nn(int M, int N, int K, float ALPHA,
             }
         }
     }
+#endif
 }
 
 void gemm_nt(int M, int N, int K, float ALPHA, 

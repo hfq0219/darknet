@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 #ifdef OPENCL
-    int BLOCK=16;
+    int CL_BLOCK=1;
     cl_platform_id *clPlatform=0;
     cl_device_id *clDevice=0;
     cl_context *clContext=0;
