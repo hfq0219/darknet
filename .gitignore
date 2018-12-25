@@ -19,7 +19,8 @@ convnet/
 decaf/
 submission/
 cfg/
-darknet
+voc/
+darknet*
 .fuse*
 
 # OS Generated #

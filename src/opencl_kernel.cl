@@ -1,4 +1,4 @@
-
+//#include <math.h>
 //im2col.c
 __kernel void im2col_opencl(int n,__global float *data_im,int height,int width,
         int ksize,int pad,int stride,int height_col,int width_col,__global float *data_col)
@@ -104,7 +104,6 @@ __kernel void gemm_tn_opencl(int M,int N,int K,float ALPHA,__global float *weigh
     int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
 
     int index = x_+y_*m_+z_*m_*n_;
-
     if(index<M*ldc){
         int row = index / ldc;
         int col = index % ldc;
@@ -121,18 +120,111 @@ __kernel void gemm_opencl(int M,int ldc,__global float *output,float BETA)
     int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
 
     int index = x_+y_*m_+z_*m_*n_;
-
     if(index<M*ldc){
         output[index] *= BETA;
     }
 }
+//blas.c
+__kernel void copy_opencl(int N,__global float *X,int INCX,__global float *Y,int INCY)
+{
+    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
+    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
 
+    int index = x_+y_*m_+z_*m_*n_;
+    if(index<N){
+        Y[index*INCY] = X[index*INCX];
+    }
+}
+//blas.c
+__kernel void fill_opencl(int N,float ALPHA,__global float *X,int INCX)
+{
+    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
+    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
 
+    int index = x_+y_*m_+z_*m_*n_;
+    if(index<N){
+        X[index*INCX] = ALPHA;
+    }
+}
+//blas.c
+__kernel void scal_opencl(int N,float ALPHA,__global float *X,int INCX)
+{
+    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
+    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
 
+    int index = x_+y_*m_+z_*m_*n_;
+    if(index<N){
+        X[index*INCX] *= ALPHA;
+    }
+}
+//blas.c
+__kernel void axpy_opencl(int N,float ALPHA,__global float *X,int INCX,__global float *Y,int INCY)
+{
+    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
+    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
 
+    int index = x_+y_*m_+z_*m_*n_;
+    if(index<N){
+        Y[index*INCY] += ALPHA*X[index*INCX];
+    }
+}
+//blas.c
+__kernel void pow_opencl(int N,float ALPHA,__global float *X,int INCX,__global float *Y,int INCY)
+{
+    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
+    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
 
+    int index = x_+y_*m_+z_*m_*n_;
+    if(index<N){
+        Y[index*INCY] = pow(X[index*INCX],ALPHA);
+    }
+}
+//blas.c
+__kernel void mul_opencl(int N,__global float *X,int INCX,__global float *Y,int INCY)
+{
+    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
+    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
 
+    int index = x_+y_*m_+z_*m_*n_;
+    if(index<N){
+        Y[index*INCY] *= X[index*INCX];
+    }
+}
+//blas.c
+__kernel void normalize_opencl(__global float *x,__global float *mean,__global float *variance,
+        int batch, int filters, int spatial)
+{
+    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
+    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
 
+    int index = x_+y_*m_+z_*m_*n_;
+    if(index<batch*filters*spatial){
+        int f=(index/spatial)%filters;
+        x[index] = (x[index] - mean[f])/(sqrt(variance[f]) + 0.000001f);
+    }
+}
+//blas.c
+__kernel void l2normalize_opencl(__global float *x,__global float *dx, int batch, int filters, int spatial)
+{
+    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
+    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
 
-
-
+    int index = x_+y_*m_+z_*m_*n_;
+    if(index<batch*spatial){
+        int b = index / spatial;
+        int i = index % spatial;
+        int f;
+        float sum = 0;
+        for(f = 0; f < filters; ++f){
+            int index = b*filters*spatial + f*spatial + i;
+            sum += pown(x[index], 2);
+        }
+        sum = sqrt(sum);
+        if(sum == 0) sum = 1;
+        for(f = 0; f < filters; ++f){
+            int index = b*filters*spatial + f*spatial + i;
+            x[index] /= sum;
+            dx[index] = (1 - x[index]) / sum;
+        }
+    }
+}

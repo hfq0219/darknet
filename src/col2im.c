@@ -51,10 +51,12 @@ void col2im_cpu(float* data_col,
     }
     err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
     if(err!=CL_SUCCESS){
-        fprintf(stderr,"\ncompute error:%d\n",err);
+        fprintf(stderr,"\ncol2im compute error:%d\n",err);
         exit(-1);
     }
     clEnqueueReadBuffer(*clCommandQueue,data_im_opencl,CL_TRUE,0,sizeof(float)*size_im,data_im,0,NULL,NULL);
+    clReleaseMemObject(data_im_opencl);
+    clReleaseMemObject(data_col_opencl);
 #else
     int c,h,w;
     int height_col = (height + 2*pad - ksize) / stride + 1;

@@ -108,9 +108,9 @@ void setWorkItemSize(int kernel_num,size_t global_work_size[3],size_t local_work
         return;
     }
     else{
-        int dim0=(kernel_num-1)/(CL_BLOCK*CL_BLOCK)+1;
+        int dim0=((kernel_num-1)/(CL_BLOCK*CL_BLOCK)+1)*CL_BLOCK;
         global_work_size[0]=dim0;
-        global_work_size[1]=1;
+        global_work_size[1]=CL_BLOCK;
         global_work_size[2]=1;
         //fprintf(stderr,"\nc %d,%d,%d\n",dim0,1,1);
         return;

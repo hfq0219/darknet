@@ -110,10 +110,13 @@ void gemm_nn(int M, int N, int K, float ALPHA,
     }
     err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
     if(err!=CL_SUCCESS){
-        fprintf(stderr,"\ngemm compute error:%d\n",err);
+        fprintf(stderr,"\ngemm nn compute error:%d\n",err);
         exit(-1);
     }
     clEnqueueReadBuffer(*clCommandQueue,data_output,CL_TRUE,0,sizeof(float)*size_output,C,0,NULL,NULL);
+    clReleaseMemObject(data_input);
+    clReleaseMemObject(data_weight);
+    clReleaseMemObject(data_output);
 #else
     int i,j,k;
     #pragma omp parallel for
@@ -167,10 +170,13 @@ void gemm_nt(int M, int N, int K, float ALPHA,
     }
     err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
     if(err!=CL_SUCCESS){
-        fprintf(stderr,"\ngemm compute error:%d\n",err);
+        fprintf(stderr,"\ngemm nt compute error:%d\n",err);
         exit(-1);
     }
     clEnqueueReadBuffer(*clCommandQueue,data_output,CL_TRUE,0,sizeof(float)*size_output,C,0,NULL,NULL);
+    clReleaseMemObject(data_input);
+    clReleaseMemObject(data_weight);
+    clReleaseMemObject(data_output);
 #else
     int i,j,k;
     #pragma omp parallel for
@@ -225,10 +231,13 @@ void gemm_tn(int M, int N, int K, float ALPHA,
     }
     err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
     if(err!=CL_SUCCESS){
-        fprintf(stderr,"\ngemm compute error:%d\n",err);
+        fprintf(stderr,"\ngemm tn compute error:%d\n",err);
         exit(-1);
     }
     clEnqueueReadBuffer(*clCommandQueue,data_output,CL_TRUE,0,sizeof(float)*size_output,C,0,NULL,NULL);
+    clReleaseMemObject(data_input);
+    clReleaseMemObject(data_weight);
+    clReleaseMemObject(data_output);
 #else
     int i,j,k;
     #pragma omp parallel for
@@ -268,7 +277,7 @@ void gemm_cpu(int TA, int TB, int M, int N, int K, float ALPHA,
         float BETA,
         float *C, int ldc)
 {
-#ifdef OPENCL
+#if 0//def OPENCL
     extern cl_context *clContext;
     extern cl_command_queue *clCommandQueue;
     extern cl_program *clProgram;

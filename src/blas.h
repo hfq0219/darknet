@@ -2,6 +2,10 @@
 #define BLAS_H
 #include "darknet.h"
 
+#ifdef OPENCL
+    #include "opencl_tool.h"
+#endif
+
 void flatten(float *x, int size, int layers, int batch, int forward);
 void pm(int M, int N, float *A);
 float *random_matrix(int rows, int cols);

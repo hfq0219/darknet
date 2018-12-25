@@ -1,6 +1,8 @@
 {
     "files.associations": {
         "*.cpp": "cpp",
-        "opencl_tool.h": "c"
+        "opencl_tool.h": "c",
+        "blas.h": "c",
+        "im2col.h": "c"
     }
 }
