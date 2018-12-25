@@ -61,6 +61,10 @@ void resize_crop_layer(layer *l, int w, int h)
     cuda_free(l->output_gpu);
     l->output_gpu = cuda_make_array(l->output, l->outputs*l->batch);
     #endif
+    #ifdef OPENCL
+    cl_free(l->output_gpu);
+    l->output_cl = cl_make_array(l->output, l->outputs*l->batch);
+    #endif
 }
 
 

@@ -156,7 +156,45 @@ layer make_deconvolutional_layer(int batch, int h, int w, int c, int n, int size
         cudnnSetTensor4dDescriptor(l.normTensorDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 1, l.out_c, 1, 1); 
     #endif
 #endif
+#ifdef OPENCL
+    l.forward_cl = forward_deconvolutional_layer_cl;
+    l.backward_cl = backward_deconvolutional_layer_cl;
+    l.update_cl = update_deconvolutional_layer_cl;
 
+    if (adam) {
+        l.m_cl = cl_make_array(l.m, c*n*size*size);
+        l.v_cl = cl_make_array(l.v, c*n*size*size);
+        l.bias_m_cl = cl_make_array(l.bias_m, n);
+        l.bias_v_cl = cl_make_array(l.bias_v, n);
+        l.scale_m_cl = cl_make_array(l.scale_m, n);
+        l.scale_v_cl = cl_make_array(l.scale_v, n);
+    }
+    l.weights_cl = cl_make_array(l.weights, c*n*size*size);
+    l.weight_updates_cl = cl_make_array(l.weight_updates, c*n*size*size);
+
+    l.biases_cl = cl_make_array(l.biases, n);
+    l.bias_updates_cl = cl_make_array(l.bias_updates, n);
+
+    l.delta_cl = cl_make_array(l.delta, l.batch*l.out_h*l.out_w*n);
+    l.output_cl = cl_make_array(l.output, l.batch*l.out_h*l.out_w*n);
+
+    if(batch_normalize){
+        l.mean_cl = cl_make_array(0, n);
+        l.variance_cl = cl_make_array(0, n);
+
+        l.rolling_mean_cl = cl_make_array(0, n);
+        l.rolling_variance_cl = cl_make_array(0, n);
+
+        l.mean_delta_cl = cl_make_array(0, n);
+        l.variance_delta_cl = cl_make_array(0, n);
+
+        l.scales_cl = cl_make_array(l.scales, n);
+        l.scale_updates_cl = cl_make_array(0, n);
+
+        l.x_cl = cl_make_array(0, l.batch*l.out_h*l.out_w*n);
+        l.x_norm_cl = cl_make_array(0, l.batch*l.out_h*l.out_w*n);
+    }
+#endif
     l.activation = activation;
     l.workspace_size = get_workspace_size(l);
 

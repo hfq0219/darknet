@@ -46,6 +46,12 @@ layer make_region_layer(int batch, int w, int h, int n, int classes, int coords)
     l.output_gpu = cuda_make_array(l.output, batch*l.outputs);
     l.delta_gpu = cuda_make_array(l.delta, batch*l.outputs);
 #endif
+#ifdef OPENCL
+    l.forward_cl = forward_region_layer_cl;
+    l.backward_cl = backward_region_layer_cl;
+    l.output_cl = cl_make_array(l.output, batch*l.outputs);
+    l.delta_cl = cl_make_array(l.delta, batch*l.outputs);
+#endif
 
     fprintf(stderr, "detection\n");
     srand(0);
@@ -70,6 +76,13 @@ void resize_region_layer(layer *l, int w, int h)
 
     l->delta_gpu =     cuda_make_array(l->delta, l->batch*l->outputs);
     l->output_gpu =    cuda_make_array(l->output, l->batch*l->outputs);
+#endif
+#ifdef OPENCL
+    cl_free(l->delta_cl);
+    cl_free(l->output_cl);
+
+    l->delta_cl =     cl_make_array(l->delta, l->batch*l->outputs);
+    l->output_cl =    cl_make_array(l->output, l->batch*l->outputs);
 #endif
 }
 

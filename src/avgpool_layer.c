@@ -27,6 +27,12 @@ avgpool_layer make_avgpool_layer(int batch, int w, int h, int c)
     l.output_gpu  = cuda_make_array(l.output, output_size);
     l.delta_gpu   = cuda_make_array(l.delta, output_size);
     #endif
+    #ifdef OPENCL
+    l.forward_cl = forward_avgpool_layer_cl;
+    l.backward_cl = backward_avgpool_layer_cl;
+    l.output_cl  = cl_make_array(l.output, output_size);
+    l.delta_cl   = cl_make_array(l.delta, output_size);
+    #endif
     return l;
 }
 

@@ -36,6 +36,13 @@ layer make_upsample_layer(int batch, int w, int h, int c, int stride)
     l.delta_gpu =  cuda_make_array(l.delta, l.outputs*batch);
     l.output_gpu = cuda_make_array(l.output, l.outputs*batch);
     #endif
+    #ifdef OPENCL
+    l.forward_cl = forward_upsample_layer_cl;
+    l.backward_cl = backward_upsample_layer_cl;
+
+    l.delta_cl =  cl_make_array(l.delta, l.outputs*batch);
+    l.output_cl = cl_make_array(l.output, l.outputs*batch);
+    #endif
     if(l.reverse) fprintf(stderr, "downsample         %2dx  %4d x%4d x%4d   ->  %4d x%4d x%4d\n", stride, w, h, c, l.out_w, l.out_h, l.out_c);
     else fprintf(stderr, "upsample           %2dx  %4d x%4d x%4d   ->  %4d x%4d x%4d\n", stride, w, h, c, l.out_w, l.out_h, l.out_c);
     return l;
@@ -62,7 +69,12 @@ void resize_upsample_layer(layer *l, int w, int h)
     l->output_gpu  = cuda_make_array(l->output, l->outputs*l->batch);
     l->delta_gpu   = cuda_make_array(l->delta,  l->outputs*l->batch);
 #endif
-    
+#ifdef OPENCL
+    cl_free(l->output_cl);
+    cl_free(l->delta_cl);
+    l->output_cl  = cl_make_array(l->output, l->outputs*l->batch);
+    l->delta_cl   = cl_make_array(l->delta,  l->outputs*l->batch);
+#endif
 }
 
 void forward_upsample_layer(const layer l, network net)

@@ -34,6 +34,15 @@ layer make_normalization_layer(int batch, int w, int h, int c, int size, float a
     layer.squared_gpu = cuda_make_array(layer.squared, h * w * c * batch);
     layer.norms_gpu =   cuda_make_array(layer.norms, h * w * c * batch);
     #endif
+    #ifdef OPENCL
+    layer.forward_cl = forward_normalization_layer_cl;
+    layer.backward_cl = backward_normalization_layer_cl;
+
+    layer.output_cl =  cl_make_array(layer.output, h * w * c * batch);
+    layer.delta_cl =   cl_make_array(layer.delta, h * w * c * batch);
+    layer.squared_cl = cl_make_array(layer.squared, h * w * c * batch);
+    layer.norms_cl =   cl_make_array(layer.norms, h * w * c * batch);
+    #endif
     return layer;
 }
 
@@ -60,6 +69,16 @@ void resize_normalization_layer(layer *layer, int w, int h)
     layer->delta_gpu =   cuda_make_array(layer->delta, h * w * c * batch);
     layer->squared_gpu = cuda_make_array(layer->squared, h * w * c * batch);
     layer->norms_gpu =   cuda_make_array(layer->norms, h * w * c * batch);
+#endif
+#ifdef OPENCL
+    cl_free(layer->output_cl);
+    cl_free(layer->delta_cl); 
+    cl_free(layer->squared_cl); 
+    cl_free(layer->norms_cl);   
+    layer->output_cl =  cl_make_array(layer->output, h * w * c * batch);
+    layer->delta_cl =   cl_make_array(layer->delta, h * w * c * batch);
+    layer->squared_cl = cl_make_array(layer->squared, h * w * c * batch);
+    layer->norms_cl =   cl_make_array(layer->norms, h * w * c * batch);
 #endif
 }
 

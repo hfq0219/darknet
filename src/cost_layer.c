@@ -62,6 +62,13 @@ cost_layer make_cost_layer(int batch, int inputs, COST_TYPE cost_type, float sca
     l.delta_gpu = cuda_make_array(l.output, inputs*batch);
     l.output_gpu = cuda_make_array(l.delta, inputs*batch);
     #endif
+    #ifdef OPENCL
+    l.forward_cl = forward_cost_layer_cl;
+    l.backward_cl = backward_cost_layer_cl;
+
+    l.delta_cl = cl_make_array(l.output, inputs*batch);
+    l.output_cl = cl_make_array(l.delta, inputs*batch);
+    #endif
     return l;
 }
 
@@ -76,6 +83,12 @@ void resize_cost_layer(cost_layer *l, int inputs)
     cuda_free(l->output_gpu);
     l->delta_gpu = cuda_make_array(l->delta, inputs*l->batch);
     l->output_gpu = cuda_make_array(l->output, inputs*l->batch);
+#endif
+#ifdef OPENCL
+    cl_free(l->delta_cl);
+    cl_free(l->output_cl);
+    l->delta_cl = cl_make_array(l->delta, inputs*l->batch);
+    l->output_cl = cl_make_array(l->output, inputs*l->batch);
 #endif
 }
 

@@ -53,7 +53,12 @@ layer make_yolo_layer(int batch, int w, int h, int n, int total, int *mask, int 
     l.output_gpu = cuda_make_array(l.output, batch*l.outputs);
     l.delta_gpu = cuda_make_array(l.delta, batch*l.outputs);
 #endif
-
+#ifdef OPENCL
+    l.forward_cl = forward_yolo_layer_cl;
+    l.backward_cl = backward_yolo_layer_cl;
+    l.output_cl = cl_make_array(l.output, batch*l.outputs);
+    l.delta_cl = cl_make_array(l.delta, batch*l.outputs);
+#endif
     fprintf(stderr, "yolo\n");
     srand(0);
 
@@ -75,8 +80,15 @@ void resize_yolo_layer(layer *l, int w, int h)
     cuda_free(l->delta_gpu);
     cuda_free(l->output_gpu);
 
-    l->delta_gpu =     cuda_make_array(l->delta, l->batch*l->outputs);
-    l->output_gpu =    cuda_make_array(l->output, l->batch*l->outputs);
+    l->delta_gpu = cuda_make_array(l->delta, l->batch*l->outputs);
+    l->output_gpu = cuda_make_array(l->output, l->batch*l->outputs);
+#endif
+#ifdef OPENCL
+    cl_free(l->delta_cl);
+    cl_free(l->output_cl);
+
+    l->delta_cl = cl_make_array(l->delta, l->batch*l->outputs);
+    l->output_cl = cl_make_array(l->output, l->batch*l->outputs);
 #endif
 }
 

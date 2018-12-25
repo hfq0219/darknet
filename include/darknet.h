@@ -18,7 +18,6 @@
 #endif
 
 #ifdef OPENCL
-    #include "CL/cl.h"
     #include "opencl_tool.h"
 #endif
 
@@ -127,6 +126,9 @@ struct layer{
     void (*forward_gpu)   (struct layer, struct network);
     void (*backward_gpu)  (struct layer, struct network);
     void (*update_gpu)    (struct layer, update_args);
+    void (*forward_cl)   (struct layer, struct network);
+    void (*backward_cl)  (struct layer, struct network);
+    void (*update_cl)    (struct layer, update_args);
     int batch_normalize;
     int shortcut;
     int batch;
@@ -424,6 +426,49 @@ struct layer{
     cudnnConvolutionBwdFilterAlgo_t bf_algo;
 #endif
 #endif
+#ifdef OPENCL
+    cl_mem indexes_gpu;
+
+    cl_mem m_cl;
+    cl_mem v_cl;
+    cl_mem bias_m_cl;
+    cl_mem scale_m_cl;
+    cl_mem bias_v_cl;
+    cl_mem scale_v_cl;
+
+    cl_mem binary_input_cl;
+    cl_mem binary_weights_cl;
+
+    cl_mem mean_cl;
+    cl_mem variance_cl;
+
+    cl_mem rolling_mean_cl;
+    cl_mem rolling_variance_cl;
+
+    cl_mem variance_delta_cl;
+    cl_mem mean_delta_cl;
+
+    cl_mem x_cl;
+    cl_mem x_norm_cl;
+    cl_mem weights_cl;
+    cl_mem weight_updates_cl;
+    cl_mem weight_change_cl;
+
+    cl_mem biases_cl;
+    cl_mem bias_updates_cl;
+    cl_mem bias_change_cl;
+
+    cl_mem scales_cl;
+    cl_mem scale_updates_cl;
+    cl_mem scale_change_cl;
+
+    cl_mem output_cl;
+    cl_mem loss_cl;
+    cl_mem delta_cl;
+    cl_mem rand_cl;
+    cl_mem squared_cl;
+    cl_mem norms_cl;
+#endif
 };
 
 void free_layer(layer);
@@ -497,7 +542,13 @@ typedef struct network{
     float *delta_gpu;
     float *output_gpu;
 #endif
-
+#ifdef OPENCL
+    cl_mem input_cl;
+    cl_mem truth_cl;
+    cl_mem delta_cl;
+    cl_mem output_cl;
+    cl_mem workspace_cl;
+#endif
 } network;
 
 typedef struct {
@@ -648,6 +699,22 @@ void update_network_gpu(network *net);
 float train_networks(network **nets, int n, data d, int interval);
 void sync_nets(network **nets, int n, int interval);
 void harmless_update_network_gpu(network *net);
+#endif
+#ifdef OPENCL
+void axpy_cl(int N, float ALPHA, cl_mem X, int INCX, cl_mem Y, int INCY);
+void fill_cl(int N, float ALPHA, cl_mem X, int INCX);
+void scal_cl(int N, float ALPHA, cl_mem X, int INCX);
+void copy_cl(int N, cl_mem X, int INCX, cl_mem Y, int INCY);
+
+void cl_free(cl_mem x_cl);
+cl_mem cl_make_array(float *x, size_t n);
+void cl_pull_array(cl_mem x_cl, float *x, size_t n);
+float cl_mag_array(cl_mem x_cl, size_t n);
+void cl_push_array(cl_mem x_cl, float *x, size_t n);
+
+void forward_network_cl(network *net);
+void backward_network_cl(network *net);
+void update_network_cl(network *net);
 #endif
 image get_label(image **characters, char *string, int size);
 void draw_label(image a, int r, int c, image label, const float *rgb);

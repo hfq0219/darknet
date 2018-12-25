@@ -34,6 +34,13 @@ route_layer make_route_layer(int batch, int n, int *input_layers, int *input_siz
     l.delta_gpu =  cuda_make_array(l.delta, outputs*batch);
     l.output_gpu = cuda_make_array(l.output, outputs*batch);
     #endif
+    #ifdef OPENCL
+    l.forward_cl = forward_route_layer_cl;
+    l.backward_cl = backward_route_layer_cl;
+
+    l.delta_cl =  cl_make_array(l.delta, outputs*batch);
+    l.output_cl = cl_make_array(l.output, outputs*batch);
+    #endif
     return l;
 }
 
@@ -68,7 +75,12 @@ void resize_route_layer(route_layer *l, network *net)
     l->output_gpu  = cuda_make_array(l->output, l->outputs*l->batch);
     l->delta_gpu   = cuda_make_array(l->delta,  l->outputs*l->batch);
 #endif
-    
+#ifdef OPENCL
+    cl_free(l->output_cl);
+    cl_free(l->delta_cl);
+    l->output_cl  = cl_make_array(l->output, l->outputs*l->batch);
+    l->delta_cl   = cl_make_array(l->delta,  l->outputs*l->batch);
+#endif
 }
 
 void forward_route_layer(const route_layer l, network net)

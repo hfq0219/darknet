@@ -66,6 +66,31 @@ layer make_batchnorm_layer(int batch, int w, int h, int c)
 
     #endif
 #endif
+#ifdef OPENCL
+    l.forward_cl = forward_batchnorm_layer_cl;
+    l.backward_cl = backward_batchnorm_layer_cl;
+
+    l.output_cl =  cl_make_array(l.output, h * w * c * batch);
+    l.delta_cl =   cl_make_array(l.delta, h * w * c * batch);
+
+    l.biases_cl = cl_make_array(l.biases, c);
+    l.bias_updates_cl = cl_make_array(l.bias_updates, c);
+
+    l.scales_cl = cl_make_array(l.scales, c);
+    l.scale_updates_cl = cl_make_array(l.scale_updates, c);
+
+    l.mean_cl = cl_make_array(l.mean, c);
+    l.variance_cl = cl_make_array(l.variance, c);
+
+    l.rolling_mean_cl = cl_make_array(l.mean, c);
+    l.rolling_variance_cl = cl_make_array(l.variance, c);
+
+    l.mean_delta_cl = cl_make_array(l.mean, c);
+    l.variance_delta_cl = cl_make_array(l.variance, c);
+
+    l.x_cl = cl_make_array(l.output, l.batch*l.outputs);
+    l.x_norm_cl = cl_make_array(l.output, l.batch*l.outputs);
+#endif
     return l;
 }
 

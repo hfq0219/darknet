@@ -52,6 +52,13 @@ layer make_reorg_layer(int batch, int w, int h, int c, int stride, int reverse, 
     l.output_gpu  = cuda_make_array(l.output, output_size);
     l.delta_gpu   = cuda_make_array(l.delta, output_size);
 #endif
+#ifdef OPENCL
+    l.forward_cl = forward_reorg_layer_cl;
+    l.backward_cl = backward_reorg_layer_cl;
+
+    l.output_cl  = cl_make_array(l.output, output_size);
+    l.delta_cl   = cl_make_array(l.delta, output_size);
+#endif
     return l;
 }
 
@@ -85,6 +92,12 @@ void resize_reorg_layer(layer *l, int w, int h)
     cuda_free(l->delta_gpu);
     l->output_gpu  = cuda_make_array(l->output, output_size);
     l->delta_gpu   = cuda_make_array(l->delta,  output_size);
+#endif
+#ifdef OPENCL
+    cl_free(l->output_cl);
+    cl_free(l->delta_cl);
+    l->output_cl  = cl_make_array(l->output, output_size);
+    l->delta_cl   = cl_make_array(l->delta,  output_size);
 #endif
 }
 

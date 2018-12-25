@@ -79,7 +79,20 @@ local_layer make_local_layer(int batch, int h, int w, int c, int n, int size, in
 
     l.delta_gpu = cuda_make_array(l.delta, l.batch*out_h*out_w*n);
     l.output_gpu = cuda_make_array(l.output, l.batch*out_h*out_w*n);
+#endif
+#ifdef OPENCL
+    l.forward_cl = forward_local_layer_cl;
+    l.backward_cl = backward_local_layer_cl;
+    l.update_cl = update_local_layer_cl;
 
+    l.weights_cl = cl_make_array(l.weights, c*n*size*size*locations);
+    l.weight_updates_cl = cl_make_array(l.weight_updates, c*n*size*size*locations);
+
+    l.biases_cl = cl_make_array(l.biases, l.outputs);
+    l.bias_updates_cl = cl_make_array(l.bias_updates, l.outputs);
+
+    l.delta_cl = cl_make_array(l.delta, l.batch*out_h*out_w*n);
+    l.output_cl = cl_make_array(l.output, l.batch*out_h*out_w*n);
 #endif
     l.activation = activation;
 

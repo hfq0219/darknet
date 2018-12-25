@@ -193,6 +193,10 @@ void forward_network(network *netp)
         return;
     }
 #endif
+#ifdef OPENCL
+    forward_network_cl(netp);   
+    return;
+#endif
     network net = *netp;
     int i;
     for(i = 0; i < net.n; ++i){
@@ -217,6 +221,10 @@ void update_network(network *netp)
         update_network_gpu(netp);   
         return;
     }
+#endif
+#ifdef OPENCL
+    pdate_network_gpu(netp);   
+    return;
 #endif
     network net = *netp;
     int i;
@@ -267,6 +275,10 @@ void backward_network(network *netp)
         backward_network_gpu(netp);   
         return;
     }
+#endif
+#ifdef OPENCL
+    backward_network_gpu(netp);   
+    return;
 #endif
     network net = *netp;
     int i;
@@ -361,6 +373,9 @@ int resize_network(network *net, int w, int h)
     cuda_set_device(net->gpu_index);
     cuda_free(net->workspace);
 #endif
+#ifdef OPENCL
+    cl_free(net->workspace_cl);
+#endif
     int i;
     //if(w == net->w && h == net->h) return 0;
     net->w = w;
@@ -430,8 +445,18 @@ int resize_network(network *net, int w, int h)
         net->workspace = calloc(1, workspace_size);
     }
 #else
-    free(net->workspace);
-    net->workspace = calloc(1, workspace_size);
+    #ifdef OPENCL
+        cl_free(net->input_cl);
+        cl_free(net->truth_cl);
+        net->input_cl = cl_make_array(net->input, net->inputs*net->batch);
+        net->truth_cl = cl_make_array(net->truth, net->truths*net->batch);
+        if(workspace_size){
+            net->workspace_cl = cl_make_array(0, (workspace_size-1)/sizeof(float)+1);
+        }
+    #else
+        free(net->workspace);
+        net->workspace = calloc(1, workspace_size);
+    #endif
 #endif
     //fprintf(stderr, " Done!\n");
     return 0;
@@ -758,7 +783,6 @@ float *network_output(network *net)
 }
 
 #ifdef GPU
-
 void forward_network_gpu(network *netp)
 {
     network net = *netp;
@@ -786,7 +810,6 @@ void forward_network_gpu(network *netp)
     pull_network_output(netp);
     calc_network_cost(netp);
 }
-
 void backward_network_gpu(network *netp)
 {
     int i;
@@ -809,7 +832,6 @@ void backward_network_gpu(network *netp)
         l.backward_gpu(l, net);
     }
 }
-
 void update_network_gpu(network *netp)
 {
     network net = *netp;
@@ -834,7 +856,6 @@ void update_network_gpu(network *netp)
         }
     }
 }
-
 void harmless_update_network_gpu(network *netp)
 {
     network net = *netp;
@@ -847,13 +868,11 @@ void harmless_update_network_gpu(network *netp)
         if(l.scale_updates_gpu) fill_gpu(l.nbiases, 0, l.scale_updates_gpu, 1);
     }
 }
-
 typedef struct {
     network *net;
     data d;
     float *err;
 } train_args;
-
 void *train_thread(void *ptr)
 {
     train_args args = *(train_args*)ptr;
@@ -862,7 +881,6 @@ void *train_thread(void *ptr)
     *args.err = train_network(args.net, args.d);
     return 0;
 }
-
 pthread_t train_network_in_thread(network *net, data d, float *err)
 {
     pthread_t thread;
@@ -873,7 +891,6 @@ pthread_t train_network_in_thread(network *net, data d, float *err)
     if(pthread_create(&thread, 0, train_thread, ptr)) error("Thread creation failed");
     return thread;
 }
-
 void merge_weights(layer l, layer base)
 {
     if (l.type == CONVOLUTIONAL) {
@@ -887,7 +904,6 @@ void merge_weights(layer l, layer base)
         axpy_cpu(l.outputs*l.inputs, 1, l.weight_updates, 1, base.weights, 1);
     }
 }
-
 void scale_weights(layer l, float s)
 {
     if (l.type == CONVOLUTIONAL) {
@@ -901,8 +917,6 @@ void scale_weights(layer l, float s)
         scal_cpu(l.outputs*l.inputs, s, l.weights, 1);
     }
 }
-
-
 void pull_weights(layer l)
 {
     if(l.type == CONVOLUTIONAL || l.type == DECONVOLUTIONAL){
@@ -914,7 +928,6 @@ void pull_weights(layer l)
         cuda_pull_array(l.weights_gpu, l.weight_updates, l.outputs*l.inputs);
     }
 }
-
 void push_weights(layer l)
 {
     if(l.type == CONVOLUTIONAL || l.type == DECONVOLUTIONAL){
@@ -926,7 +939,6 @@ void push_weights(layer l)
         cuda_push_array(l.weights_gpu, l.weights, l.outputs*l.inputs);
     }
 }
-
 void distribute_weights(layer l, layer base)
 {
     if (l.type == CONVOLUTIONAL || l.type == DECONVOLUTIONAL) {
@@ -938,8 +950,6 @@ void distribute_weights(layer l, layer base)
         cuda_push_array(l.weights_gpu, base.weights, l.outputs*l.inputs);
     }
 }
-
-
 /*
 
    void pull_updates(layer l)
@@ -1023,7 +1033,6 @@ void distribute_weights(layer l, layer base)
    }
    }
  */
-
 void sync_layer(network **nets, int n, int j)
 {
     int i;
@@ -1043,13 +1052,11 @@ void sync_layer(network **nets, int n, int j)
         distribute_weights(l, base);
     }
 }
-
 typedef struct{
     network **nets;
     int n;
     int j;
 } sync_args;
-
 void *sync_layer_thread(void *ptr)
 {
     sync_args args = *(sync_args*)ptr;
@@ -1057,7 +1064,6 @@ void *sync_layer_thread(void *ptr)
     free(ptr);
     return 0;
 }
-
 pthread_t sync_layer_in_thread(network **nets, int n, int j)
 {
     pthread_t thread;
@@ -1068,7 +1074,6 @@ pthread_t sync_layer_in_thread(network **nets, int n, int j)
     if(pthread_create(&thread, 0, sync_layer_thread, ptr)) error("Thread creation failed");
     return thread;
 }
-
 void sync_nets(network **nets, int n, int interval)
 {
     int j;
@@ -1087,7 +1092,6 @@ void sync_nets(network **nets, int n, int interval)
     }
     free(threads);
 }
-
 float train_networks(network **nets, int n, data d, int interval)
 {
     int i;
@@ -1119,11 +1123,87 @@ float train_networks(network **nets, int n, data d, int interval)
     free(errors);
     return (float)sum/(n);
 }
-
 void pull_network_output(network *net)
 {
     layer l = get_network_output_layer(net);
     cuda_pull_array(l.output_gpu, l.output, l.outputs*l.batch);
 }
+#endif
 
+#ifdef OPENCL
+void forward_network_cl(network *netp)
+{
+    network net = *netp;
+    cl_push_array(net.input_cl, net.input, net.inputs*net.batch);
+    if(net.truth){
+        cl_push_array(net.truth_cl, net.truth, net.truths*net.batch);
+    }
+
+    int i;
+    for(i = 0; i < net.n; ++i){
+        net.index = i;
+        layer l = net.layers[i];
+        if(l.delta_cl){
+            fill_cl(l.outputs * l.batch, 0, l.delta_cl, 1);
+        }
+        l.forward_cl(l, net);
+        net.input_cl = l.output_cl;
+        net.input = l.output;
+        if(l.truth) {
+            net.truth_cl = l.output_cl;
+            net.truth = l.output;
+        }
+    }
+    pull_network_output(netp);
+    calc_network_cost(netp);
+}
+void backward_network_cl(network *netp)
+{
+    int i;
+    network net = *netp;
+    network orig = net;
+    for(i = net.n-1; i >= 0; --i){
+        layer l = net.layers[i];
+        if(l.stopbackward) break;
+        if(i == 0){
+            net = orig;
+        }else{
+            layer prev = net.layers[i-1];
+            net.input = prev.output;
+            net.delta = prev.delta;
+            net.input_cl = prev.output_cl;
+            net.delta_cl = prev.delta_cl;
+        }
+        net.index = i;
+        l.backward_cl(l, net);
+    }
+}
+void update_network_cl(network *netp)
+{
+    network net = *netp;
+    int i;
+    update_args a = {0};
+    a.batch = net.batch*net.subdivisions;
+    a.learning_rate = get_current_rate(netp);
+    a.momentum = net.momentum;
+    a.decay = net.decay;
+    a.adam = net.adam;
+    a.B1 = net.B1;
+    a.B2 = net.B2;
+    a.eps = net.eps;
+    ++*net.t;
+    a.t = (*net.t);
+
+    for(i = 0; i < net.n; ++i){
+        layer l = net.layers[i];
+        if(l.update_cl){
+            l.update_cl(l, a);
+        }
+    }
+}
+void pull_network_output(network *net)
+{
+    layer l = get_network_output_layer(net);
+    cl_pull_array(l.output_cl, l.output, l.outputs*l.batch);
+}
 #endif

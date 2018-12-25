@@ -834,6 +834,10 @@ network *parse_network_cfg(char *filename)
             l.output_gpu = net->layers[count-1].output_gpu;
             l.delta_gpu = net->layers[count-1].delta_gpu;
 #endif
+#ifdef OPENCL
+            l.output_cl = net->layers[count-1].output_cl;
+            l.delta_cl = net->layers[count-1].delta_cl;
+#endif
         }else{
             fprintf(stderr, "Type not recognized: %s\n", s->type);
         }
@@ -873,6 +877,11 @@ network *parse_network_cfg(char *filename)
     net->input_gpu = cuda_make_array(net->input, net->inputs*net->batch);
     net->truth_gpu = cuda_make_array(net->truth, net->truths*net->batch);
 #endif
+#ifdef OPENCL
+    net->output_cl = out.output_cl;
+    net->input_cl = cl_make_array(net->input, net->inputs*net->batch);
+    net->truth_cl = cl_make_array(net->truth, net->truths*net->batch);
+#endif
     if(workspace_size){
         //printf("%ld\n", workspace_size);
 #ifdef GPU
@@ -882,7 +891,11 @@ network *parse_network_cfg(char *filename)
             net->workspace = calloc(1, workspace_size);
         }
 #else
+    #ifdef OPENCL
+        net->workspace_cl = cl_make_array(0, (workspace_size-1)/sizeof(float)+1);
+    #else
         net->workspace = calloc(1, workspace_size);
+    #endif
 #endif
     }
     return net;
@@ -930,6 +943,9 @@ void save_convolutional_weights_binary(layer l, FILE *fp)
         pull_convolutional_layer(l);
     }
 #endif
+#ifdef OPENCL
+        pull_convolutional_layer(l);
+#endif
     binarize_weights(l.weights, l.n, l.c*l.size*l.size, l.binary_weights);
     int size = l.c*l.size*l.size;
     int i, j, k;
@@ -966,6 +982,9 @@ void save_convolutional_weights(layer l, FILE *fp)
         pull_convolutional_layer(l);
     }
 #endif
+#ifdef OPENCL
+        pull_convolutional_layer(l);
+#endif
     int num = l.nweights;
     fwrite(l.biases, sizeof(float), l.n, fp);
     if (l.batch_normalize){
@@ -983,6 +1002,9 @@ void save_batchnorm_weights(layer l, FILE *fp)
         pull_batchnorm_layer(l);
     }
 #endif
+#ifdef OPENCL
+        pull_batchnorm_layer(l);
+#endif
     fwrite(l.scales, sizeof(float), l.c, fp);
     fwrite(l.rolling_mean, sizeof(float), l.c, fp);
     fwrite(l.rolling_variance, sizeof(float), l.c, fp);
@@ -994,6 +1016,9 @@ void save_connected_weights(layer l, FILE *fp)
     if(gpu_index >= 0){
         pull_connected_layer(l);
     }
+#endif
+#ifdef OPENCL
+        pull_connected_layer(l);
 #endif
     fwrite(l.biases, sizeof(float), l.outputs, fp);
     fwrite(l.weights, sizeof(float), l.outputs*l.inputs, fp);
@@ -1069,6 +1094,9 @@ void save_weights_upto(network *net, char *filename, int cutoff)
                 pull_local_layer(l);
             }
 #endif
+#ifdef OPENCL
+                pull_local_layer(l);
+#endif
             int locations = l.out_w*l.out_h;
             int size = l.size*l.size*l.c*l.n*locations;
             fwrite(l.biases, sizeof(float), l.outputs, fp);
@@ -1117,6 +1145,9 @@ void load_connected_weights(layer l, FILE *fp, int transpose)
         push_connected_layer(l);
     }
 #endif
+#ifdef OPENCL
+    push_connected_layer(l);
+#endif
 }
 
 void load_batchnorm_weights(layer l, FILE *fp)
@@ -1128,6 +1159,9 @@ void load_batchnorm_weights(layer l, FILE *fp)
     if(gpu_index >= 0){
         push_batchnorm_layer(l);
     }
+#endif
+#ifdef OPENCL
+        push_batchnorm_layer(l);
 #endif
 }
 
@@ -1158,6 +1192,9 @@ void load_convolutional_weights_binary(layer l, FILE *fp)
     if(gpu_index >= 0){
         push_convolutional_layer(l);
     }
+#endif
+#ifdef OPENCL
+    push_convolutional_layer(l);
 #endif
 }
 
@@ -1211,6 +1248,9 @@ void load_convolutional_weights(layer l, FILE *fp)
     if(gpu_index >= 0){
         push_convolutional_layer(l);
     }
+#endif
+#ifdef OPENCL
+    push_convolutional_layer(l);
 #endif
 }
 
@@ -1298,6 +1338,9 @@ void load_weights_upto(network *net, char *filename, int start, int cutoff)
             if(gpu_index >= 0){
                 push_local_layer(l);
             }
+#endif
+#ifdef OPENCL
+            push_local_layer(l);
 #endif
         }
     }

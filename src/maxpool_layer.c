@@ -74,6 +74,14 @@ void resize_maxpool_layer(maxpool_layer *l, int w, int h)
     l->output_gpu  = cuda_make_array(l->output, output_size);
     l->delta_gpu   = cuda_make_array(l->delta,  output_size);
     #endif
+    #ifdef OPENCL
+    cl_free(l->indexes_cl);
+    cl_free(l->output_cl);
+    cl_free(l->delta_cl);
+    l->indexes_cl = cl_make_int_array(0, output_size);
+    l->output_cl  = cl_make_array(l->output, output_size);
+    l->delta_cl   = cl_make_array(l->delta,  output_size);
+    #endif
 }
 
 void forward_maxpool_layer(const maxpool_layer l, network net)

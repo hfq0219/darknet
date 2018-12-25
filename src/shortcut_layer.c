@@ -35,6 +35,13 @@ layer make_shortcut_layer(int batch, int index, int w, int h, int c, int w2, int
     l.delta_gpu =  cuda_make_array(l.delta, l.outputs*batch);
     l.output_gpu = cuda_make_array(l.output, l.outputs*batch);
     #endif
+    #ifdef OPENCL
+    l.forward_cl = forward_shortcut_layer_cl;
+    l.backward_cl = backward_shortcut_layer_cl;
+
+    l.delta_cl =  cl_make_array(l.delta, l.outputs*batch);
+    l.output_cl = cl_make_array(l.output, l.outputs*batch);
+    #endif
     return l;
 }
 
@@ -55,7 +62,12 @@ void resize_shortcut_layer(layer *l, int w, int h)
     l->output_gpu  = cuda_make_array(l->output, l->outputs*l->batch);
     l->delta_gpu   = cuda_make_array(l->delta,  l->outputs*l->batch);
 #endif
-    
+#ifdef OPENCL
+    cl_free(l->output_cl);
+    cl_free(l->delta_cl);
+    l->output_cl  = cl_make_array(l->output, l->outputs*l->batch);
+    l->delta_cl   = cl_make_array(l->delta,  l->outputs*l->batch);
+#endif
 }
 
 

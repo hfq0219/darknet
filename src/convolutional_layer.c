@@ -319,6 +319,54 @@ convolutional_layer make_convolutional_layer(int batch, int h, int w, int c, int
 #endif
     }
 #endif
+#ifdef GPU
+    l.forward_cl = forward_convolutional_layer_cl;
+    l.backward_cl = backward_convolutional_layer_cl;
+    l.update_cl = update_convolutional_layer_cl;
+
+    if (adam) {
+        l.m_cl = cl_make_array(l.m, l.nweights);
+        l.v_cl = cl_make_array(l.v, l.nweights);
+        l.bias_m_cl = cl_make_array(l.bias_m, n);
+        l.bias_v_cl = cl_make_array(l.bias_v, n);
+        l.scale_m_cl = cl_make_array(l.scale_m, n);
+        l.scale_v_cl = cl_make_array(l.scale_v, n);
+    }
+
+    l.weights_cl = cl_make_array(l.weights, l.nweights);
+    l.weight_updates_cl = cl_make_array(l.weight_updates, l.nweights);
+
+    l.biases_cl = cl_make_array(l.biases, n);
+    l.bias_updates_cl = cl_make_array(l.bias_updates, n);
+
+    l.delta_cl = cl_make_array(l.delta, l.batch*out_h*out_w*n);
+    l.output_cl = cl_make_array(l.output, l.batch*out_h*out_w*n);
+
+    if(binary){
+        l.binary_weights_cl = cl_make_array(l.weights, l.nweights);
+    }
+    if(xnor){
+        l.binary_weights_cl = cl_make_array(l.weights, l.nweights);
+        l.binary_input_cl = cl_make_array(0, l.inputs*l.batch);
+    }
+
+    if(batch_normalize){
+        l.mean_cl = cl_make_array(l.mean, n);
+        l.variance_cl = cl_make_array(l.variance, n);
+
+        l.rolling_mean_cl = cl_make_array(l.mean, n);
+        l.rolling_variance_cl = cl_make_array(l.variance, n);
+
+        l.mean_delta_cl = cl_make_array(l.mean, n);
+        l.variance_delta_cl = cl_make_array(l.variance, n);
+
+        l.scales_cl = cl_make_array(l.scales, n);
+        l.scale_updates_cl = cl_make_array(l.scale_updates, n);
+
+        l.x_cl = cl_make_array(l.output, l.batch*out_h*out_w*n);
+        l.x_norm_cl = cl_make_array(l.output, l.batch*out_h*out_w*n);
+    }
+#endif
     l.workspace_size = get_workspace_size(l);
     l.activation = activation;
 
@@ -404,6 +452,21 @@ void resize_convolutional_layer(convolutional_layer *l, int w, int h)
 #ifdef CUDNN
     cudnn_convolutional_setup(l);
 #endif
+#endif
+#ifdef OPENCL
+    cl_free(l->delta_cl);
+    cl_free(l->output_cl);
+
+    l->delta_cl =  cl_make_array(l->delta,  l->batch*l->outputs);
+    l->output_cl = cl_make_array(l->output, l->batch*l->outputs);
+
+    if(l->batch_normalize){
+        cl_free(l->x_cl);
+        cl_free(l->x_norm_cl);
+
+        l->x_cl = cl_make_array(l->output, l->batch*l->outputs);
+        l->x_norm_cl = cl_make_array(l->output, l->batch*l->outputs);
+    }
 #endif
     l->workspace_size = get_workspace_size(*l);
 }
