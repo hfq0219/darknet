@@ -30,6 +30,13 @@ layer make_activation_layer(int batch, int inputs, ACTIVATION activation)
     l.output_gpu = cuda_make_array(l.output, inputs*batch);
     l.delta_gpu = cuda_make_array(l.delta, inputs*batch);
 #endif
+#ifdef OPENCL
+    l.forward_cl = forward_activation_layer_cl;
+    l.backward_cl = backward_activation_layer_cl;
+
+    l.output_cl = cl_make_array(l.output, inputs*batch);
+    l.delta_cl = cl_make_array(l.delta, inputs*batch);
+#endif
     l.activation = activation;
     fprintf(stderr, "Activation Layer: %d inputs\n", inputs);
     return l;
@@ -59,5 +66,42 @@ void backward_activation_layer_gpu(layer l, network net)
 {
     gradient_array_gpu(l.output_gpu, l.outputs*l.batch, l.activation, l.delta_gpu);
     copy_gpu(l.outputs*l.batch, l.delta_gpu, 1, net.delta_gpu, 1);
+}
+#endif
+#ifdef OPENCL
+void forward_activation_layer_cl(layer l, network net)
+{
+    copy_cl(l.outputs*l.batch, net.input_cl, 1, l.output_cl, 1);
+    activate_array_cl(l.output_cl, l.outputs*l.batch, l.activation);
+}
+void backward_activation_layer_cl(layer l, network net)
+{
+    gradient_array_cl(l.output_cl, l.outputs*l.batch, l.activation, l.delta_cl);
+    copy_cl(l.outputs*l.batch, l.delta_cl, 1, net.delta_cl, 1);
+}
+void activate_array_cl(cl_mem x, int n, ACTIVATION a) 
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(n,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram, "activate_array_opencl", err);
+    err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &x);
+    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &n);
+    err|=clSetKernelArg(*clKernel, 2, sizeof(ACTIVATION), &a);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+void gradient_array_cl(cl_mem x, int n, ACTIVATION a, cl_mem delta) 
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(n,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram, "gradient_array_opencl", err);
+    err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &x);
+    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &n);
+    err|=clSetKernelArg(*clKernel, 2, sizeof(ACTIVATION), &a);
+    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_mem), &delta);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
 }
 #endif

@@ -124,6 +124,45 @@ layer make_connected_layer(int batch, int inputs, int outputs, ACTIVATION activa
 #endif
     }
 #endif
+#ifdef OPENCL
+    l.forward_cl = forward_connected_layer_cl;
+    l.backward_cl = backward_connected_layer_cl;
+    l.update_cl = update_connected_layer_cl;
+
+    l.weights_cl = cl_make_array(l.weights, outputs*inputs);
+    l.biases_cl = cl_make_array(l.biases, outputs);
+
+    l.weight_updates_cl = cl_make_array(l.weight_updates, outputs*inputs);
+    l.bias_updates_cl = cl_make_array(l.bias_updates, outputs);
+
+    l.output_cl = cl_make_array(l.output, outputs*batch);
+    l.delta_cl = cl_make_array(l.delta, outputs*batch);
+    if (adam) {
+        l.m_cl =       cl_make_array(0, inputs*outputs);
+        l.v_cl =       cl_make_array(0, inputs*outputs);
+        l.bias_m_cl =  cl_make_array(0, outputs);
+        l.bias_v_cl =  cl_make_array(0, outputs);
+        l.scale_m_cl = cl_make_array(0, outputs);
+        l.scale_v_cl = cl_make_array(0, outputs);
+    }
+
+    if(batch_normalize){
+        l.mean_cl = cl_make_array(l.mean, outputs);
+        l.variance_cl = cl_make_array(l.variance, outputs);
+
+        l.rolling_mean_cl = cl_make_array(l.mean, outputs);
+        l.rolling_variance_cl = cl_make_array(l.variance, outputs);
+
+        l.mean_delta_cl = cl_make_array(l.mean, outputs);
+        l.variance_delta_cl = cl_make_array(l.variance, outputs);
+
+        l.scales_cl = cl_make_array(l.scales, outputs);
+        l.scale_updates_cl = cl_make_array(l.scale_updates, outputs);
+
+        l.x_cl = cl_make_array(l.output, l.batch*outputs);
+        l.x_norm_cl = cl_make_array(l.output, l.batch*outputs);
+    }
+#endif
     l.activation = activation;
     fprintf(stderr, "connected                            %4d  ->  %4d\n", inputs, outputs);
     return l;
@@ -332,5 +371,109 @@ void backward_connected_layer_gpu(layer l, network net)
     c = net.delta_gpu;
 
     if(c) gemm_gpu(0,0,m,n,k,1,a,k,b,n,1,c,n);
+}
+#endif
+#ifdef OPENCL
+
+void pull_connected_layer(layer l)
+{
+    cl_pull_array(l.weights_cl, l.weights, l.inputs*l.outputs);
+    cl_pull_array(l.biases_cl, l.biases, l.outputs);
+    cl_pull_array(l.weight_updates_cl, l.weight_updates, l.inputs*l.outputs);
+    cl_pull_array(l.bias_updates_cl, l.bias_updates, l.outputs);
+    if (l.batch_normalize){
+        cl_pull_array(l.scales_cl, l.scales, l.outputs);
+        cl_pull_array(l.rolling_mean_cl, l.rolling_mean, l.outputs);
+        cl_pull_array(l.rolling_variance_cl, l.rolling_variance, l.outputs);
+    }
+}
+
+void push_connected_layer(layer l)
+{
+    cl_push_array(l.weights_cl, l.weights, l.inputs*l.outputs);
+    cl_push_array(l.biases_cl, l.biases, l.outputs);
+    cl_push_array(l.weight_updates_cl, l.weight_updates, l.inputs*l.outputs);
+    cl_push_array(l.bias_updates_cl, l.bias_updates, l.outputs);
+    if (l.batch_normalize){
+        cl_push_array(l.scales_cl, l.scales, l.outputs);
+        cl_push_array(l.rolling_mean_cl, l.rolling_mean, l.outputs);
+        cl_push_array(l.rolling_variance_cl, l.rolling_variance, l.outputs);
+    }
+}
+
+void update_connected_layer_cl(layer l, update_args a)
+{
+    float learning_rate = a.learning_rate*l.learning_rate_scale;
+    float momentum = a.momentum;
+    float decay = a.decay;
+    int batch = a.batch;
+    if(a.adam){
+        adam_update_cl(l.weights_cl, l.weight_updates_cl, l.m_cl, l.v_cl, a.B1, a.B2, a.eps, decay, learning_rate, l.inputs*l.outputs, batch, a.t);
+        adam_update_cl(l.biases_cl, l.bias_updates_cl, l.bias_m_cl, l.bias_v_cl, a.B1, a.B2, a.eps, decay, learning_rate, l.outputs, batch, a.t);
+        if(l.scales_cl){
+            adam_update_cl(l.scales_cl, l.scale_updates_cl, l.scale_m_cl, l.scale_v_cl, a.B1, a.B2, a.eps, decay, learning_rate, l.outputs, batch, a.t);
+        }
+    }else{
+        axpy_cl(l.outputs, learning_rate/batch, l.bias_updates_cl, 1, l.biases_cl, 1);
+        scal_cl(l.outputs, momentum, l.bias_updates_cl, 1);
+
+        if(l.batch_normalize){
+            axpy_cl(l.outputs, learning_rate/batch, l.scale_updates_cl, 1, l.scales_cl, 1);
+            scal_cl(l.outputs, momentum, l.scale_updates_cl, 1);
+        }
+
+        axpy_cl(l.inputs*l.outputs, -decay*batch, l.weights_cl, 1, l.weight_updates_cl, 1);
+        axpy_cl(l.inputs*l.outputs, learning_rate/batch, l.weight_updates_cl, 1, l.weights_cl, 1);
+        scal_cl(l.inputs*l.outputs, momentum, l.weight_updates_cl, 1);
+    }
+}
+
+void forward_connected_layer_cl(layer l, network net)
+{
+    fill_cl(l.outputs*l.batch, 0, l.output_cl, 1);
+
+    int m = l.batch;
+    int k = l.inputs;
+    int n = l.outputs;
+    cl_mem a = net.input_cl;
+    cl_mem b = l.weights_cl;
+    cl_mem c = l.output_cl;
+    gemm_cl(0,1,m,n,k,1,a,k,b,k,1,c,n);
+
+    if (l.batch_normalize) {
+        forward_batchnorm_layer_cl(l, net);
+    } else {
+        add_bias_cl(l.output_cl, l.biases_cl, l.batch, l.outputs, 1);
+    }
+    activate_array_cl(l.output_cl, l.outputs*l.batch, l.activation);
+}
+
+void backward_connected_layer_cl(layer l, network net)
+{
+    constrain_cl(l.outputs*l.batch, 1, l.delta_cl, 1);
+    gradient_array_cl(l.output_cl, l.outputs*l.batch, l.activation, l.delta_cl);
+    if(l.batch_normalize){
+        backward_batchnorm_layer_cl(l, net);
+    } else {
+        backward_bias_cl(l.bias_updates_cl, l.delta_cl, l.batch, l.outputs, 1);
+    }
+
+    int m = l.outputs;
+    int k = l.batch;
+    int n = l.inputs;
+    cl_mem a = l.delta_cl;
+    cl_mem b = net.input_cl;
+    cl_mem c = l.weight_updates_cl;
+    gemm_cl(1,0,m,n,k,1,a,m,b,n,1,c,n);
+
+    m = l.batch;
+    k = l.outputs;
+    n = l.inputs;
+
+    a = l.delta_cl;
+    b = l.weights_cl;
+    c = net.delta_cl;
+
+    if(c) gemm_cl(0,0,m,n,k,1,a,k,b,n,1,c,n);
 }
 #endif

@@ -16,5 +16,8 @@ void resize_cost_layer(cost_layer *l, int inputs);
 void forward_cost_layer_gpu(cost_layer l, network net);
 void backward_cost_layer_gpu(const cost_layer l, network net);
 #endif
-
+#ifdef OPENCL
+void forward_cost_layer_cl(cost_layer l, network net);
+void backward_cost_layer_cl(const cost_layer l, network net);
+#endif
 #endif

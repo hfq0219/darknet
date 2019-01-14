@@ -106,4 +106,57 @@ void softmax_tree(float *input, int spatial, int batch, int stride, float temp, 
 void upsample_gpu(float *in, int w, int h, int c, int batch, int stride, int forward, float scale, float *out);
 
 #endif
+#ifdef OPENCL
+
+void axpy_cl(int N, float ALPHA, cl_mem X, int INCX, cl_mem Y, int INCY);
+void copy_cl(int N, cl_mem X, int INCX, cl_mem Y, int INCY);
+void add_cl(int N, float ALPHA, cl_mem X, int INCX);
+void supp_cl(int N, float ALPHA, cl_mem X, int INCX);
+void mask_cl(int N, cl_mem X, float mask_num, cl_mem mask, float val);
+void scale_mask_cl(int N, cl_mem X, float mask_num, cl_mem mask, float scale);
+void const_cl(int N, float ALPHA, cl_mem X, int INCX);
+void pow_cl(int N, float ALPHA, cl_mem X, int INCX, cl_mem Y, int INCY);
+void mul_cl(int N, cl_mem X, int INCX, cl_mem Y, int INCY);
+
+void mean_cl(cl_mem x, int batch, int filters, int spatial, cl_mem mean);
+void variance_cl(cl_mem x, cl_mem mean, int batch, int filters, int spatial, cl_mem variance);
+void normalize_cl(cl_mem x, cl_mem mean, cl_mem variance, int batch, int filters, int spatial);
+void l2normalize_cl(cl_mem x, cl_mem dx, int batch, int filters, int spatial);
+
+void normalize_delta_cl(cl_mem x, cl_mem mean, cl_mem variance, cl_mem mean_delta, cl_mem variance_delta, int batch, int filters, int spatial, cl_mem delta);
+
+void fast_mean_delta_cl(cl_mem delta, cl_mem variance, int batch, int filters, int spatial, cl_mem mean_delta);
+void fast_variance_delta_cl(cl_mem x, cl_mem delta, cl_mem mean, cl_mem variance, int batch, int filters, int spatial, cl_mem variance_delta);
+
+void fast_variance_cl(cl_mem x, cl_mem mean, int batch, int filters, int spatial, cl_mem variance);
+void fast_mean_cl(cl_mem x, int batch, int filters, int spatial, cl_mem mean);
+void shortcut_cl(int batch, int w1, int h1, int c1, cl_mem add, int w2, int h2, int c2, float s1, float s2, cl_mem out);
+void scale_bias_cl(cl_mem output, cl_mem biases, int batch, int n, int size);
+void backward_scale_cl(cl_mem x_norm, cl_mem delta, int batch, int n, int size, cl_mem scale_updates);
+void scale_bias_cl(cl_mem output, cl_mem biases, int batch, int n, int size);
+void add_bias_cl(cl_mem output, cl_mem biases, int batch, int n, int size);
+void backward_bias_cl(cl_mem bias_updates, cl_mem delta, int batch, int n, int size);
+
+void logistic_x_ent_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error);
+void softmax_x_ent_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error);
+void smooth_l1_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error);
+void l2_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error);
+void l1_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error);
+void wgan_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error);
+void weighted_delta_cl(cl_mem a, cl_mem b, cl_mem s, cl_mem da, cl_mem db, cl_mem ds, int num, cl_mem dc);
+void weighted_sum_cl(cl_mem a, cl_mem b, cl_mem s, int num, cl_mem c);
+void mult_add_into_cl(int num, cl_mem a, cl_mem b, cl_mem c);
+void inter_cl(int NX, cl_mem X, int NY, cl_mem Y, int B, cl_mem OUT);
+void deinter_cl(int NX, cl_mem X, int NY, cl_mem Y, int B, cl_mem OUT);
+
+void reorg_cl(cl_mem x, int w, int h, int c, int batch, int stride, int forward, cl_mem out);
+
+void softmax_cl(cl_mem input, int n, int batch, int batch_offset, int groups, int group_offset, int stride, float temp, cl_mem output);
+void adam_update_cl(cl_mem w, cl_mem d, cl_mem m, cl_mem v, float B1, float B2, float eps, float decay, float rate, int n, int batch, int t);
+void adam_cl(int n, cl_mem x, cl_mem m, cl_mem v, float B1, float B2, float rate, float eps, int t);
+
+void flatten_cl(cl_mem x, int spatial, int layers, int batch, int forward, cl_mem out);
+void upsample_cl(cl_mem in, int w, int h, int c, int batch, int stride, int forward, float scale, cl_mem out);
+
+#endif
 #endif

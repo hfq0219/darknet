@@ -174,18 +174,3 @@ float cl_mag_array(cl_mem x_cl, size_t n)
     return m;
 }
 
-void fill_cl(int N, float ALPHA, cl_mem X, int INCX)
-{
-    cl_int err;
-
-    size_t globalSize[3],localSize[3];
-    setWorkItemSize(N,globalSize,localSize);
-    *clKernel=clCreateKernel(*clProgram,"fill_opencl",&err);
-    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&N);
-    err|=clSetKernelArg(*clKernel,1,sizeof(cl_float),&ALPHA);
-    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&X);
-    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&INCX);
-    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
-}
-

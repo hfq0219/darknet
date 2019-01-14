@@ -74,4 +74,37 @@ void backward_avgpool_layer(const avgpool_layer l, network net)
         }
     }
 }
-
+#ifdef OPENCL
+void forward_avgpool_layer_cl(avgpool_layer layer, network net)
+{
+    size_t n = layer.c*layer.batch;
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(n,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram, "forward_avgpool_layer_opencl", err);
+    err|=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &n);
+    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &layer.w);
+    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &layer.h);
+    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_int), &layer.c);
+    err|=clSetKernelArg(*clKernel, 4, sizeof(cl_mem), &net.input_cl);
+    err|=clSetKernelArg(*clKernel, 5, sizeof(cl_mem), &layer.output_cl);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+void backward_avgpool_layer_cl(avgpool_layer layer, network net)
+{
+    size_t n = layer.c*layer.batch;
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(n,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram, "backward_avgpool_layer_opencl", err);
+    err|=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &n);
+    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &layer.w);
+    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &layer.h);
+    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_int), &layer.c);
+    err|=clSetKernelArg(*clKernel, 4, sizeof(cl_mem), &net.delta_cl);
+    err|=clSetKernelArg(*clKernel, 5, sizeof(cl_mem), &layer.delta_cl);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+#endif

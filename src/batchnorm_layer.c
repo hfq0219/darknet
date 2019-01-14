@@ -302,3 +302,59 @@ void backward_batchnorm_layer_gpu(layer l, network net)
     if(l.type == BATCHNORM) copy_gpu(l.outputs*l.batch, l.delta_gpu, 1, net.delta_gpu, 1);
 }
 #endif
+#ifdef OPENCL
+void pull_batchnorm_layer(layer l)
+{
+    cl_pull_array(l.scales_cl, l.scales, l.c);
+    cl_pull_array(l.rolling_mean_cl, l.rolling_mean, l.c);
+    cl_pull_array(l.rolling_variance_cl, l.rolling_variance, l.c);
+}
+void push_batchnorm_layer(layer l)
+{
+    cl_push_array(l.scales_cl, l.scales, l.c);
+    cl_push_array(l.rolling_mean_cl, l.rolling_mean, l.c);
+    cl_push_array(l.rolling_variance_cl, l.rolling_variance, l.c);
+}
+void forward_batchnorm_layer_cl(layer l, network net)
+{
+    if(l.type == BATCHNORM) copy_cl(l.outputs*l.batch, net.input_cl, 1, l.output_cl, 1);
+    copy_cl(l.outputs*l.batch, l.output_cl, 1, l.x_cl, 1);
+    if (net.train) {
+        fast_mean_cl(l.output_cl, l.batch, l.out_c, l.out_h*l.out_w, l.mean_cl);
+        fast_variance_cl(l.output_cl, l.mean_cl, l.batch, l.out_c, l.out_h*l.out_w, l.variance_cl);
+
+        scal_cl(l.out_c, .99, l.rolling_mean_cl, 1);
+        axpy_cl(l.out_c, .01, l.mean_cl, 1, l.rolling_mean_cl, 1);
+        scal_cl(l.out_c, .99, l.rolling_variance_cl, 1);
+        axpy_cl(l.out_c, .01, l.variance_cl, 1, l.rolling_variance_cl, 1);
+
+        copy_cl(l.outputs*l.batch, l.output_cl, 1, l.x_cl, 1);
+        normalize_cl(l.output_cl, l.mean_cl, l.variance_cl, l.batch, l.out_c, l.out_h*l.out_w);
+        copy_cl(l.outputs*l.batch, l.output_cl, 1, l.x_norm_cl, 1);
+
+        scale_bias_cl(l.output_cl, l.scales_cl, l.batch, l.out_c, l.out_h*l.out_w);
+        add_bias_cl(l.output_cl, l.biases_cl, l.batch, l.out_c, l.out_w*l.out_h);
+    } else {
+        normalize_cl(l.output_cl, l.rolling_mean_cl, l.rolling_variance_cl, l.batch, l.out_c, l.out_h*l.out_w);
+        scale_bias_cl(l.output_cl, l.scales_cl, l.batch, l.out_c, l.out_h*l.out_w);
+        add_bias_cl(l.output_cl, l.biases_cl, l.batch, l.out_c, l.out_w*l.out_h);
+    }
+}
+void backward_batchnorm_layer_cl(layer l, network net)
+{
+    if(!net.train){
+        l.mean_cl = l.rolling_mean_cl;
+        l.variance_cl = l.rolling_variance_cl;
+    }
+    backward_bias_cl(l.bias_updates_cl, l.delta_cl, l.batch, l.out_c, l.out_w*l.out_h);
+    backward_scale_cl(l.x_norm_cl, l.delta_cl, l.batch, l.out_c, l.out_w*l.out_h, l.scale_updates_cl);
+
+    scale_bias_cl(l.delta_cl, l.scales_cl, l.batch, l.out_c, l.out_h*l.out_w);
+
+    fast_mean_delta_cl(l.delta_cl, l.variance_cl, l.batch, l.out_c, l.out_w*l.out_h, l.mean_delta_cl);
+    fast_variance_delta_cl(l.x_cl, l.delta_cl, l.mean_cl, l.variance_cl, l.batch, l.out_c, l.out_w*l.out_h, l.variance_delta_cl);
+    normalize_delta_cl(l.x_cl, l.mean_cl, l.variance_cl, l.mean_delta_cl, l.variance_delta_cl, l.batch, l.out_c, l.out_w*l.out_h, l.delta_cl);
+
+    if(l.type == BATCHNORM) copy_cl(l.outputs*l.batch, l.delta_cl, 1, net.delta_cl, 1);
+}
+#endif

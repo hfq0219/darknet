@@ -40,7 +40,12 @@ detection_layer make_detection_layer(int batch, int inputs, int n, int side, int
     l.output_gpu = cuda_make_array(l.output, batch*l.outputs);
     l.delta_gpu = cuda_make_array(l.delta, batch*l.outputs);
 #endif
-
+#ifdef OPENCL
+    l.forward_cl = forward_detection_layer_cl;
+    l.backward_cl = backward_detection_layer_cl;
+    l.output_cl = cl_make_array(l.output, batch*l.outputs);
+    l.delta_cl = cl_make_array(l.delta, batch*l.outputs);
+#endif
     fprintf(stderr, "Detection Layer\n");
     srand(0);
 
@@ -272,4 +277,24 @@ void backward_detection_layer_gpu(detection_layer l, network net)
     //copy_gpu(l.batch*l.inputs, l.delta_gpu, 1, net.delta_gpu, 1);
 }
 #endif
+#ifdef OPENCL
 
+void forward_detection_layer_cl(const detection_layer l, network net)
+{
+    if(!net.train){
+        copy_cl(l.batch*l.inputs, net.input_cl, 1, l.output_cl, 1);
+        return;
+    }
+
+    cl_pull_array(net.input_cl, net.input, l.batch*l.inputs);
+    forward_detection_layer(l, net);
+    cl_push_array(l.output_cl, l.output, l.batch*l.outputs);
+    cl_push_array(l.delta_cl, l.delta, l.batch*l.inputs);
+}
+
+void backward_detection_layer_cl(detection_layer l, network net)
+{
+    axpy_cl(l.batch*l.inputs, 1, l.delta_cl, 1, net.delta_cl, 1);
+    //copy_gpu(l.batch*l.inputs, l.delta_gpu, 1, net.delta_gpu, 1);
+}
+#endif

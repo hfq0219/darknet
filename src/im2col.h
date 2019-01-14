@@ -2,8 +2,7 @@
 #define IM2COL_H
 
 #ifdef OPENCL
-#include "CL/cl.h"
-#include "opencl_tool.h"
+        #include "opencl_tool.h"
 #endif
 
 void im2col_cpu(float* data_im,
@@ -15,6 +14,13 @@ void im2col_cpu(float* data_im,
 void im2col_gpu(float *im,
          int channels, int height, int width,
          int ksize, int stride, int pad,float *data_col);
+
+#endif
+#ifdef OPENCL
+
+void im2col_cl(cl_mem im,
+         int channels, int height, int width,
+         int ksize, int stride, int pad,cl_mem data_col);
 
 #endif
 #endif

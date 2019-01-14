@@ -14,5 +14,8 @@ void backward_detection_layer(const detection_layer l, network net);
 void forward_detection_layer_gpu(const detection_layer l, network net);
 void backward_detection_layer_gpu(detection_layer l, network net);
 #endif
-
+#ifdef OPENCL
+void forward_detection_layer_cl(const detection_layer l, network net);
+void backward_detection_layer_cl(detection_layer l, network net);
+#endif
 #endif

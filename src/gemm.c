@@ -76,48 +76,6 @@ void gemm_nn(int M, int N, int K, float ALPHA,
         float *B, int ldb,
         float *C, int ldc)
 {
-#ifdef OPENCL
-    extern cl_context *clContext;
-    extern cl_command_queue *clCommandQueue;
-    extern cl_program *clProgram;
-    extern cl_kernel *clKernel;
-
-    int size_input = K * ldb;
-    int size_weight = M * lda;
-    int size_output = M * ldc;
-    size_t globalWorkSize[3],localWorkSize[3];
-    setWorkItemSize(size_output,globalWorkSize,localWorkSize);
-    cl_int err;
-    *clKernel=clCreateKernel(*clProgram, "gemm_nn_opencl", &err);
-    if(err!=CL_SUCCESS) {fprintf(stderr,"kernel error\n");exit(-1);}
-    cl_mem data_input=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*size_input, B, NULL);
-    cl_mem data_weight=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*size_weight, A, NULL);
-    cl_mem data_output=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*size_output, C, NULL);
-    err=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &M);
-    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &N);
-    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &K);
-    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_float), &ALPHA);
-    err|=clSetKernelArg(*clKernel, 4, sizeof(cl_mem), &data_weight);
-    err|=clSetKernelArg(*clKernel, 5, sizeof(cl_int), &lda);
-    err|=clSetKernelArg(*clKernel, 6, sizeof(cl_mem), &data_input);
-    err|=clSetKernelArg(*clKernel, 7, sizeof(cl_int), &ldb);
-    err|=clSetKernelArg(*clKernel, 8, sizeof(cl_mem), &data_output);
-    err|=clSetKernelArg(*clKernel, 9, sizeof(cl_int), &ldc);
-    if(err!=CL_SUCCESS||data_weight==NULL||data_input==NULL||data_output==NULL){
-        fprintf(stderr,"kernel arg set failed.\n");
-        clean(clContext,clCommandQueue,clProgram,clKernel);
-        exit(-1);
-    }
-    err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
-    if(err!=CL_SUCCESS){
-        fprintf(stderr,"\ngemm nn compute error:%d\n",err);
-        exit(-1);
-    }
-    clEnqueueReadBuffer(*clCommandQueue,data_output,CL_TRUE,0,sizeof(float)*size_output,C,0,NULL,NULL);
-    clReleaseMemObject(data_input);
-    clReleaseMemObject(data_weight);
-    clReleaseMemObject(data_output);
-#else
     int i,j,k;
     #pragma omp parallel for
     for(i = 0; i < M; ++i){
@@ -128,7 +86,6 @@ void gemm_nn(int M, int N, int K, float ALPHA,
             }
         }
     }
-#endif
 }
 
 void gemm_nt(int M, int N, int K, float ALPHA, 
@@ -136,48 +93,6 @@ void gemm_nt(int M, int N, int K, float ALPHA,
         float *B, int ldb,
         float *C, int ldc)
 {
-#ifdef OPENCL
-    extern cl_context *clContext;
-    extern cl_command_queue *clCommandQueue;
-    extern cl_program *clProgram;
-    extern cl_kernel *clKernel;
-
-    int size_input = N * ldb;
-    int size_weight = M * lda;
-    int size_output = M * ldc;
-    size_t globalWorkSize[3],localWorkSize[3];
-    setWorkItemSize(size_output,globalWorkSize,localWorkSize);
-    cl_int err;
-    *clKernel=clCreateKernel(*clProgram, "gemm_nt_opencl", &err);
-    if(err!=CL_SUCCESS) {fprintf(stderr,"kernel error\n");exit(-1);}
-    cl_mem data_input=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*size_input, B, NULL);
-    cl_mem data_weight=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*size_weight, A, NULL);
-    cl_mem data_output=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*size_output, C, NULL);
-    err=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &M);
-    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &N);
-    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &K);
-    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_float), &ALPHA);
-    err|=clSetKernelArg(*clKernel, 4, sizeof(cl_mem), &data_weight);
-    err|=clSetKernelArg(*clKernel, 5, sizeof(cl_int), &lda);
-    err|=clSetKernelArg(*clKernel, 6, sizeof(cl_mem), &data_input);
-    err|=clSetKernelArg(*clKernel, 7, sizeof(cl_int), &ldb);
-    err|=clSetKernelArg(*clKernel, 8, sizeof(cl_mem), &data_output);
-    err|=clSetKernelArg(*clKernel, 9, sizeof(cl_int), &ldc);
-    if(err!=CL_SUCCESS||data_weight==NULL||data_input==NULL||data_output==NULL){
-        fprintf(stderr,"kernel arg set failed.\n");
-        clean(clContext,clCommandQueue,clProgram,clKernel);
-        exit(-1);
-    }
-    err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
-    if(err!=CL_SUCCESS){
-        fprintf(stderr,"\ngemm nt compute error:%d\n",err);
-        exit(-1);
-    }
-    clEnqueueReadBuffer(*clCommandQueue,data_output,CL_TRUE,0,sizeof(float)*size_output,C,0,NULL,NULL);
-    clReleaseMemObject(data_input);
-    clReleaseMemObject(data_weight);
-    clReleaseMemObject(data_output);
-#else
     int i,j,k;
     #pragma omp parallel for
     for(i = 0; i < M; ++i){
@@ -189,7 +104,6 @@ void gemm_nt(int M, int N, int K, float ALPHA,
             C[i*ldc+j] += sum;
         }
     }
-#endif
 }
 
 void gemm_tn(int M, int N, int K, float ALPHA, 
@@ -197,48 +111,6 @@ void gemm_tn(int M, int N, int K, float ALPHA,
         float *B, int ldb,
         float *C, int ldc)
 {
-#ifdef OPENCL
-    extern cl_context *clContext;
-    extern cl_command_queue *clCommandQueue;
-    extern cl_program *clProgram;
-    extern cl_kernel *clKernel;
-
-    int size_input = K * ldb;
-    int size_weight = K * lda;
-    int size_output = M * ldc;
-    size_t globalWorkSize[3],localWorkSize[3];
-    setWorkItemSize(size_output,globalWorkSize,localWorkSize);
-    cl_int err;
-    *clKernel=clCreateKernel(*clProgram, "gemm_tn_opencl", &err);
-    if(err!=CL_SUCCESS) {fprintf(stderr,"kernel error\n");exit(-1);}
-    cl_mem data_input=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*size_input, B, NULL);
-    cl_mem data_weight=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*size_weight, A, NULL);
-    cl_mem data_output=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*size_output, C, NULL);
-    err=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &M);
-    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &N);
-    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &K);
-    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_float), &ALPHA);
-    err|=clSetKernelArg(*clKernel, 4, sizeof(cl_mem), &data_weight);
-    err|=clSetKernelArg(*clKernel, 5, sizeof(cl_int), &lda);
-    err|=clSetKernelArg(*clKernel, 6, sizeof(cl_mem), &data_input);
-    err|=clSetKernelArg(*clKernel, 7, sizeof(cl_int), &ldb);
-    err|=clSetKernelArg(*clKernel, 8, sizeof(cl_mem), &data_output);
-    err|=clSetKernelArg(*clKernel, 9, sizeof(cl_int), &ldc);
-    if(err!=CL_SUCCESS||data_weight==NULL||data_input==NULL||data_output==NULL){
-        fprintf(stderr,"kernel arg set failed.\n");
-        clean(clContext,clCommandQueue,clProgram,clKernel);
-        exit(-1);
-    }
-    err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
-    if(err!=CL_SUCCESS){
-        fprintf(stderr,"\ngemm tn compute error:%d\n",err);
-        exit(-1);
-    }
-    clEnqueueReadBuffer(*clCommandQueue,data_output,CL_TRUE,0,sizeof(float)*size_output,C,0,NULL,NULL);
-    clReleaseMemObject(data_input);
-    clReleaseMemObject(data_weight);
-    clReleaseMemObject(data_output);
-#else
     int i,j,k;
     #pragma omp parallel for
     for(i = 0; i < M; ++i){
@@ -249,7 +121,6 @@ void gemm_tn(int M, int N, int K, float ALPHA,
             }
         }
     }
-#endif
 }
 
 void gemm_tt(int M, int N, int K, float ALPHA, 
@@ -277,36 +148,6 @@ void gemm_cpu(int TA, int TB, int M, int N, int K, float ALPHA,
         float BETA,
         float *C, int ldc)
 {
-#if 0//def OPENCL
-    extern cl_context *clContext;
-    extern cl_command_queue *clCommandQueue;
-    extern cl_program *clProgram;
-    extern cl_kernel *clKernel;
-
-    int size_output = M * ldc;
-    size_t globalWorkSize[3],localWorkSize[3];
-    setWorkItemSize(size_output,globalWorkSize,localWorkSize);
-    cl_int err;
-    *clKernel=clCreateKernel(*clProgram, "gemm_opencl", &err);
-    if(err!=CL_SUCCESS) {fprintf(stderr,"kernel error\n");exit(-1);}
-    cl_mem data_output=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*size_output, C, NULL);
-    err=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &M);
-    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &ldc);
-    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_mem), &data_output);
-    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_float), &BETA);
-    if(err!=CL_SUCCESS||data_output==NULL){
-        fprintf(stderr,"kernel arg set failed.\n");
-        clean(clContext,clCommandQueue,clProgram,clKernel);
-        exit(-1);
-    }
-    err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
-    if(err!=CL_SUCCESS){
-        fprintf(stderr,"\ngemm compute error:%d\n",err);
-        exit(-1);
-    }
-    clEnqueueReadBuffer(*clCommandQueue,data_output,CL_TRUE,0,sizeof(float)*size_output,C,0,NULL,NULL);
-    clReleaseMemObject(data_output);
-#else
     //printf("cpu: %d %d %d %d %d %f %d %d %f %d\n",TA, TB, M, N, K, ALPHA, lda, ldb, BETA, ldc);
     int i, j;
     for(i = 0; i < M; ++i){
@@ -314,7 +155,6 @@ void gemm_cpu(int TA, int TB, int M, int N, int K, float ALPHA,
             C[i*ldc + j] *= BETA;
         }
     }
-#endif
     if(!TA && !TB)
         gemm_nn(M, N, K, ALPHA,A,lda, B, ldb,C,ldc);
     else if(TA && !TB)
@@ -324,7 +164,46 @@ void gemm_cpu(int TA, int TB, int M, int N, int K, float ALPHA,
     else
         gemm_tt(M, N, K, ALPHA,A,lda, B, ldb,C,ldc);
 }
-
+#ifdef OPENCL
+void gemm_cl(int TA, int TB, int M, int N, int K, float ALPHA, 
+        cl_mem A, int lda, 
+        cl_mem B, int ldb,
+        float BETA,
+        cl_mem C, int ldc)
+{
+    scal_cl(M*N,BETA,C,1);
+    if(!TA && !TB)
+        gemm_xx_cl(M, N, K, ALPHA,A,lda, B, ldb,C,ldc,"gemm_nn_opencl");
+    else if(TA && !TB)
+        gemm_xx_cl(M, N, K, ALPHA,A,lda, B, ldb,C,ldc,"gemm_tn_opencl");
+    else if(!TA && TB)
+        gemm_xx_cl(M, N, K, ALPHA,A,lda, B, ldb,C,ldc,"gemm_nt_opencl");
+    else
+        gemm_xx_cl(M, N, K, ALPHA,A,lda, B, ldb,C,ldc,"gemm_tt_opencl");
+}
+void gemm_xx_cl(int M, int N, int K, float ALPHA, 
+        cl_mem A, int lda, 
+        cl_mem B, int ldb,
+        cl_mem C, int ldc,char *kernelFun)
+{
+    size_t globalWorkSize[3],localWorkSize[3];
+    setWorkItemSize(M*N,globalWorkSize,localWorkSize);
+    cl_int err;
+    *clKernel=clCreateKernel(*clProgram, kernelFun, &err);
+    err|=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &M);
+    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &N);
+    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &K);
+    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_float), &ALPHA);
+    err|=clSetKernelArg(*clKernel, 4, sizeof(cl_mem), &A);
+    err|=clSetKernelArg(*clKernel, 5, sizeof(cl_int), &lda);
+    err|=clSetKernelArg(*clKernel, 6, sizeof(cl_mem), &B);
+    err|=clSetKernelArg(*clKernel, 7, sizeof(cl_int), &ldb);
+    err|=clSetKernelArg(*clKernel, 8, sizeof(cl_mem), &C);
+    err|=clSetKernelArg(*clKernel, 9, sizeof(cl_int), &ldc);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
+    cl_error(err);
+}
+#endif
 #ifdef GPU
 
 #include <math.h>

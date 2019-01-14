@@ -125,40 +125,6 @@ void variance_cpu(float *x, float *mean, int batch, int filters, int spatial, fl
 
 void l2normalize_cpu(float *x, float *dx, int batch, int filters, int spatial)
 {
-#if 0//def OPENCL //减慢了
-    extern cl_context *clContext;
-    extern cl_command_queue *clCommandQueue;
-    extern cl_program *clProgram;
-    extern cl_kernel *clKernel;
-
-    int num_kernels=batch*filters*spatial;
-    size_t globalWorkSize[3],localWorkSize[3];
-    setWorkItemSize(batch*spatial,globalWorkSize,localWorkSize);
-    cl_int err;
-    *clKernel=clCreateKernel(*clProgram, "l2normalize_opencl", &err);
-    if(err!=CL_SUCCESS) {fprintf(stderr,"kernel error\n");exit(-1);}
-    cl_mem data_x=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*num_kernels, x, NULL);
-    cl_mem data_dx=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*num_kernels, dx, NULL);
-    err=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &data_x);
-    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_mem), &data_dx);
-    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &batch);
-    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_int), &filters);
-    err|=clSetKernelArg(*clKernel, 4, sizeof(cl_int), &spatial);
-    if(err!=CL_SUCCESS||data_x==NULL||data_dx==NULL){
-        fprintf(stderr,"kernel arg set failed.\n");
-        clean(clContext,clCommandQueue,clProgram,clKernel);
-        exit(-1);
-    }
-    err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
-    if(err!=CL_SUCCESS){
-        fprintf(stderr,"\nl2normalize compute error:%d\n",err);
-        exit(-1);
-    }
-    clEnqueueReadBuffer(*clCommandQueue,data_x,CL_TRUE,0,sizeof(float)*num_kernels,x,0,NULL,NULL);
-    clEnqueueReadBuffer(*clCommandQueue,data_dx,CL_TRUE,0,sizeof(float)*num_kernels,dx,0,NULL,NULL);
-    clReleaseMemObject(data_x);
-    clReleaseMemObject(data_dx);
-#else
     int b,f,i;
     for(b = 0; b < batch; ++b){
         for(i = 0; i < spatial; ++i){
@@ -175,48 +141,11 @@ void l2normalize_cpu(float *x, float *dx, int batch, int filters, int spatial)
             }
         }
     }
-#endif
 }
 
 
 void normalize_cpu(float *x, float *mean, float *variance, int batch, int filters, int spatial)
 {
-#if 0//def OPENCL //减慢了
-    extern cl_context *clContext;
-    extern cl_command_queue *clCommandQueue;
-    extern cl_program *clProgram;
-    extern cl_kernel *clKernel;
-
-    int num_kernels=batch*filters*spatial;
-    size_t globalWorkSize[3],localWorkSize[3];
-    setWorkItemSize(num_kernels,globalWorkSize,localWorkSize);
-    cl_int err;
-    *clKernel=clCreateKernel(*clProgram, "normalize_opencl", &err);
-    if(err!=CL_SUCCESS) {fprintf(stderr,"kernel error\n");exit(-1);}
-    cl_mem data_x=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*num_kernels, x, NULL);
-    cl_mem data_m=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*filters, mean, NULL);
-    cl_mem data_v=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*filters, variance, NULL);
-    err=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &data_x);
-    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_mem), &data_m);
-    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_mem), &data_v);
-    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_int), &batch);
-    err|=clSetKernelArg(*clKernel, 4, sizeof(cl_int), &filters);
-    err|=clSetKernelArg(*clKernel, 5, sizeof(cl_int), &spatial);
-    if(err!=CL_SUCCESS||data_x==NULL||data_m==NULL||data_v==NULL){
-        fprintf(stderr,"kernel arg set failed.\n");
-        clean(clContext,clCommandQueue,clProgram,clKernel);
-        exit(-1);
-    }
-    err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
-    if(err!=CL_SUCCESS){
-        fprintf(stderr,"\nnormalize compute error:%d\n",err);
-        exit(-1);
-    }
-    clEnqueueReadBuffer(*clCommandQueue,data_x,CL_TRUE,0,sizeof(float)*num_kernels,x,0,NULL,NULL);
-    clReleaseMemObject(data_x);
-    clReleaseMemObject(data_m);
-    clReleaseMemObject(data_v);
-#else
     int b, f, i;
     for(b = 0; b < batch; ++b){
         for(f = 0; f < filters; ++f){
@@ -226,234 +155,42 @@ void normalize_cpu(float *x, float *mean, float *variance, int batch, int filter
             }
         }
     }
-#endif
 }
 
 void const_cpu(int N, float ALPHA, float *X, int INCX)
 {
-#if 0//def OPENCL
-    extern cl_context *clContext;
-    extern cl_command_queue *clCommandQueue;
-    extern cl_program *clProgram;
-    extern cl_kernel *clKernel;
-
-    size_t globalWorkSize[3],localWorkSize[3];
-    setWorkItemSize(N,globalWorkSize,localWorkSize);
-    cl_int err;
-    *clKernel=clCreateKernel(*clProgram, "fill_opencl", &err);
-    if(err!=CL_SUCCESS) {fprintf(stderr,"kernel error\n");exit(-1);}
-    cl_mem data_x=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*N*INCX, X, NULL);
-    err=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &N);
-    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_float), &ALPHA);
-    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_mem), &data_x);
-    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_int), &INCX);
-    if(err!=CL_SUCCESS||data_x==NULL){
-        fprintf(stderr,"kernel arg set failed.\n");
-        clean(clContext,clCommandQueue,clProgram,clKernel);
-        exit(-1);
-    }
-    err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
-    if(err!=CL_SUCCESS){
-        fprintf(stderr,"\nconst compute error:%d\n",err);
-        exit(-1);
-    }
-    clEnqueueReadBuffer(*clCommandQueue,data_x,CL_TRUE,0,sizeof(float)*N*INCX,X,0,NULL,NULL);
-    clReleaseMemObject(data_x);
-#else
     int i;
     for(i = 0; i < N; ++i) X[i*INCX] = ALPHA;
-#endif
 }
 
 void mul_cpu(int N, float *X, int INCX, float *Y, int INCY)
 {
-#ifdef OPENCL
-    extern cl_context *clContext;
-    extern cl_command_queue *clCommandQueue;
-    extern cl_program *clProgram;
-    extern cl_kernel *clKernel;
-
-    size_t globalWorkSize[3],localWorkSize[3];
-    setWorkItemSize(N,globalWorkSize,localWorkSize);
-    cl_int err;
-    *clKernel=clCreateKernel(*clProgram, "mul_opencl", &err);
-    if(err!=CL_SUCCESS) {fprintf(stderr,"kernel error\n");exit(-1);}
-    cl_mem data_x=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*N*INCX, X, NULL);
-    cl_mem data_y=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*N*INCY, Y, NULL);
-    err=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &N);
-    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_mem), &data_x);
-    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &INCX);
-    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_mem), &data_y);
-    err|=clSetKernelArg(*clKernel, 4, sizeof(cl_int), &INCY);
-    if(err!=CL_SUCCESS||data_x==NULL||data_y==NULL){
-        fprintf(stderr,"kernel arg set failed.\n");
-        clean(clContext,clCommandQueue,clProgram,clKernel);
-        exit(-1);
-    }
-    err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
-    if(err!=CL_SUCCESS){
-        fprintf(stderr,"\nmul compute error:%d\n",err);
-        exit(-1);
-    }
-    clEnqueueReadBuffer(*clCommandQueue,data_y,CL_TRUE,0,sizeof(float)*N*INCY,Y,0,NULL,NULL);
-    clReleaseMemObject(data_x);
-    clReleaseMemObject(data_y);
-#else
     int i;
     for(i = 0; i < N; ++i) Y[i*INCY] *= X[i*INCX];
-#endif
 }
 
 void pow_cpu(int N, float ALPHA, float *X, int INCX, float *Y, int INCY)
 {
-#ifdef OPENCL
-    extern cl_context *clContext;
-    extern cl_command_queue *clCommandQueue;
-    extern cl_program *clProgram;
-    extern cl_kernel *clKernel;
-
-    size_t globalWorkSize[3],localWorkSize[3];
-    setWorkItemSize(N,globalWorkSize,localWorkSize);
-    cl_int err;
-    *clKernel=clCreateKernel(*clProgram, "pow_opencl", &err);
-    if(err!=CL_SUCCESS) {fprintf(stderr,"kernel error\n");exit(-1);}
-    cl_mem data_x=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*N*INCX, X, NULL);
-    cl_mem data_y=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*N*INCY, Y, NULL);
-    err=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &N);
-    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_float), &ALPHA);
-    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_mem), &data_x);
-    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_int), &INCX);
-    err|=clSetKernelArg(*clKernel, 4, sizeof(cl_mem), &data_y);
-    err|=clSetKernelArg(*clKernel, 5, sizeof(cl_int), &INCY);
-    if(err!=CL_SUCCESS||data_x==NULL||data_y==NULL){
-        fprintf(stderr,"kernel arg set failed.\n");
-        clean(clContext,clCommandQueue,clProgram,clKernel);
-        exit(-1);
-    }
-    err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
-    if(err!=CL_SUCCESS){
-        fprintf(stderr,"\npow compute error:%d\n",err);
-        exit(-1);
-    }
-    clEnqueueReadBuffer(*clCommandQueue,data_y,CL_TRUE,0,sizeof(float)*N*INCY,Y,0,NULL,NULL);
-    clReleaseMemObject(data_x);
-    clReleaseMemObject(data_y);
-#else
     int i;
     for(i = 0; i < N; ++i) Y[i*INCY] = pow(X[i*INCX], ALPHA);
-#endif
 }
 
 void axpy_cpu(int N, float ALPHA, float *X, int INCX, float *Y, int INCY)
 {
-#ifdef OPENCL
-    extern cl_context *clContext;
-    extern cl_command_queue *clCommandQueue;
-    extern cl_program *clProgram;
-    extern cl_kernel *clKernel;
-
-    size_t globalWorkSize[3],localWorkSize[3];
-    setWorkItemSize(N,globalWorkSize,localWorkSize);
-    cl_int err;
-    *clKernel=clCreateKernel(*clProgram, "axpy_opencl", &err);
-    if(err!=CL_SUCCESS) {fprintf(stderr,"kernel error\n");exit(-1);}
-    cl_mem data_x=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*N*INCX, X, NULL);
-    cl_mem data_y=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*N*INCY, Y, NULL);
-    err=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &N);
-    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_float), &ALPHA);
-    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_mem), &data_x);
-    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_int), &INCX);
-    err|=clSetKernelArg(*clKernel, 4, sizeof(cl_mem), &data_y);
-    err|=clSetKernelArg(*clKernel, 5, sizeof(cl_int), &INCY);
-    if(err!=CL_SUCCESS||data_x==NULL||data_y==NULL){
-        fprintf(stderr,"kernel arg set failed.\n");
-        clean(clContext,clCommandQueue,clProgram,clKernel);
-        exit(-1);
-    }
-    err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
-    if(err!=CL_SUCCESS){
-        fprintf(stderr,"\naxpy compute error:%d\n",err);
-        exit(-1);
-    }
-    clEnqueueReadBuffer(*clCommandQueue,data_y,CL_TRUE,0,sizeof(float)*N*INCY,Y,0,NULL,NULL);
-    clReleaseMemObject(data_x);
-    clReleaseMemObject(data_y);
-#else
     int i;
     for(i = 0; i < N; ++i) Y[i*INCY] += ALPHA*X[i*INCX];
-#endif
 }
 
 void scal_cpu(int N, float ALPHA, float *X, int INCX)
 {
-#ifdef OPENCL
-    extern cl_context *clContext;
-    extern cl_command_queue *clCommandQueue;
-    extern cl_program *clProgram;
-    extern cl_kernel *clKernel;
-
-    size_t globalWorkSize[3],localWorkSize[3];
-    setWorkItemSize(N,globalWorkSize,localWorkSize);
-    cl_int err;
-    *clKernel=clCreateKernel(*clProgram, "scal_opencl", &err);
-    if(err!=CL_SUCCESS) {fprintf(stderr,"kernel error\n");exit(-1);}
-    cl_mem data_x=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*N*INCX, X, NULL);
-    err=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &N);
-    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_float), &ALPHA);
-    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_mem), &data_x);
-    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_int), &INCX);
-    if(err!=CL_SUCCESS||data_x==NULL){
-        fprintf(stderr,"kernel arg set failed.\n");
-        clean(clContext,clCommandQueue,clProgram,clKernel);
-        exit(-1);
-    }
-    err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
-    if(err!=CL_SUCCESS){
-        fprintf(stderr,"\nscal compute error:%d\n",err);
-        exit(-1);
-    }
-    clEnqueueReadBuffer(*clCommandQueue,data_x,CL_TRUE,0,sizeof(float)*N*INCX,X,0,NULL,NULL);
-    clReleaseMemObject(data_x);
-#else
     int i;
     for(i = 0; i < N; ++i) X[i*INCX] *= ALPHA;
-#endif
 }
 
 void fill_cpu(int N, float ALPHA, float *X, int INCX)
 {
-#if 0//def OPENCL
-    extern cl_context *clContext;
-    extern cl_command_queue *clCommandQueue;
-    extern cl_program *clProgram;
-    extern cl_kernel *clKernel;
-
-    size_t globalWorkSize[3],localWorkSize[3];
-    setWorkItemSize(N,globalWorkSize,localWorkSize);
-    cl_int err;
-    *clKernel=clCreateKernel(*clProgram, "fill_opencl", &err);
-    if(err!=CL_SUCCESS) {fprintf(stderr,"kernel error\n");exit(-1);}
-    cl_mem data_x=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*N*INCX, X, NULL);
-    err=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &N);
-    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_float), &ALPHA);
-    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_mem), &data_x);
-    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_int), &INCX);
-    if(err!=CL_SUCCESS||data_x==NULL){
-        fprintf(stderr,"kernel arg set failed.\n");
-        clean(clContext,clCommandQueue,clProgram,clKernel);
-        exit(-1);
-    }
-    err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
-    if(err!=CL_SUCCESS){
-        fprintf(stderr,"\nfill compute error:%d,%d,%d\n",err,N,INCX);
-        exit(-1);
-    }
-    clEnqueueReadBuffer(*clCommandQueue,data_x,CL_TRUE,0,sizeof(float)*N*INCX,X,0,NULL,NULL);
-    clReleaseMemObject(data_x);
-#else
     int i;
     for(i = 0; i < N; ++i) X[i*INCX] = ALPHA;
-#endif
 }
 
 void deinter_cpu(int NX, float *X, int NY, float *Y, int B, float *OUT)
@@ -488,41 +225,8 @@ void inter_cpu(int NX, float *X, int NY, float *Y, int B, float *OUT)
 
 void copy_cpu(int N, float *X, int INCX, float *Y, int INCY)
 {
-#if 0//def OPENCL
-    extern cl_context *clContext;
-    extern cl_command_queue *clCommandQueue;
-    extern cl_program *clProgram;
-    extern cl_kernel *clKernel;
-
-    size_t globalWorkSize[3],localWorkSize[3];
-    setWorkItemSize(N,globalWorkSize,localWorkSize);
-    cl_int err;
-    *clKernel=clCreateKernel(*clProgram, "copy_opencl", &err);
-    if(err!=CL_SUCCESS) {fprintf(stderr,"kernel error\n");exit(-1);}
-    cl_mem data_y=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*N*INCY, Y, NULL);
-    cl_mem data_x=clCreateBuffer(*clContext, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR, sizeof(float)*N*INCX, X, NULL);
-    err=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &N);
-    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_mem), &data_x);
-    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &INCX);
-    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_mem), &data_y);
-    err|=clSetKernelArg(*clKernel, 4, sizeof(cl_int), &INCY);
-    if(err!=CL_SUCCESS||data_x==NULL||data_y==NULL){
-        fprintf(stderr,"kernel arg set failed.\n");
-        clean(clContext,clCommandQueue,clProgram,clKernel);
-        exit(-1);
-    }
-    err=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
-    if(err!=CL_SUCCESS){
-        fprintf(stderr,"\ncopy compute error:%d\n",err);
-        exit(-1);
-    }
-    clEnqueueReadBuffer(*clCommandQueue,data_y,CL_TRUE,0,sizeof(float)*N*INCY,Y,0,NULL,NULL);
-    clReleaseMemObject(data_x);
-    clReleaseMemObject(data_y);
-#else
     int i;
     for(i = 0; i < N; ++i) Y[i*INCY] = X[i*INCX];
-#endif
 }
 
 void mult_add_into_cpu(int N, float *X, float *Y, float *Z)
@@ -643,5 +347,689 @@ void upsample_cpu(float *in, int w, int h, int c, int batch, int stride, int for
         }
     }
 }
+#ifdef OPENCL
 
+void scale_bias_cl(cl_mem output, cl_mem biases, int batch, int n, int size)
+{
+    cl_int err;
+    int BLOCK=512;
+    size_t globalSize[3]={((size-1)/BLOCK + 1)*BLOCK,n,batch};
+    if(((size-1)/BLOCK + 1)*BLOCK>1024){
+        fprintf(stderr,"wrong work size.\n");
+        exit(-1);
+    }
+    size_t localSize[3]={BLOCK,1,1};
+    *clKernel=clCreateKernel(*clProgram,"scale_bias_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&output);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&biases);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&n);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&size);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void backward_scale_cl(cl_mem x_norm, cl_mem delta, int batch, int n, int size, cl_mem scale_updates)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(n,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"backward_scale_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&x_norm);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&delta);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&batch);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&n);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&size);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_mem),&scale_updates);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void add_bias_cl(cl_mem output, cl_mem biases, int batch, int n, int size)
+{
+    int num = n*size*batch;
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(num,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"add_bias_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&output);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&biases);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&batch);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&n);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&size);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void backward_bias_cl(cl_mem bias_updates, cl_mem delta, int batch, int n, int size)
+{
+    
+    if(size == 1){
+        cl_int err;
+        size_t globalSize[3],localSize[3];
+        setWorkItemSize(n,globalSize,localSize);
+        *clKernel=clCreateKernel(*clProgram,"backward_bias_conn_opencl",&err);
+        err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&bias_updates);
+        err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&delta);
+        err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&batch);
+        err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&n);
+        err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+        cl_error(err);
+    }else{
+        backward_bias_kernel<<<n, BLOCK>>>(bias_updates, delta, batch, n, size);
+    }
+}
+
+void adam_cl(int n, cl_mem x, cl_mem m, cl_mem v, float B1, float B2, float rate, float eps, int t)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(n,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"adam_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&n);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&x);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&m);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&v);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_float),&B1);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_float),&B2);
+    err|=clSetKernelArg(*clKernel,6,sizeof(cl_float),&rate);
+    err|=clSetKernelArg(*clKernel,7,sizeof(cl_float),&eps);
+    err|=clSetKernelArg(*clKernel,8,sizeof(cl_int),&t);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void adam_update_cl(cl_mem w, cl_mem d, cl_mem m, cl_mem v, float B1, float B2, float eps, float decay, float rate, int n, int batch, int t)
+{
+    scal_cl(n, B1, m, 1);
+    scal_cl(n, B2, v, 1);
+    axpy_cl(n, -decay*batch, w, 1, d, 1);
+
+    axpy_cl(n, (1-B1), d, 1, m, 1);
+    mul_cl(n, d, 1, d, 1);
+    axpy_cl(n, (1-B2), d, 1, v, 1);
+
+    adam_cl(n, w, m, v, B1, B2, rate, eps, t);
+    fill_cl(n, 0, d, 1);
+}
+
+void normalize_delta_cl(cl_mem x, cl_mem mean, cl_mem variance, cl_mem mean_delta, cl_mem variance_delta, int batch, int filters, int spatial, cl_mem delta)
+{
+    size_t N = batch*filters*spatial;
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(N,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"normalize_delta_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&N);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&x);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&mean);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&variance);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&mean_delta);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_mem),&variance_delta);
+    err|=clSetKernelArg(*clKernel,6,sizeof(cl_int),&batch);
+    err|=clSetKernelArg(*clKernel,7,sizeof(cl_int),&filters);
+    err|=clSetKernelArg(*clKernel,8,sizeof(cl_int),&spatial);
+    err|=clSetKernelArg(*clKernel,9,sizeof(cl_mem),&delta);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void mean_delta_cl(cl_mem delta, cl_mem variance, int batch, int filters, int spatial, cl_mem mean_delta)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(filters,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"normalize_delta_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&delta);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&variance);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&batch);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&filters);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&spatial);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_mem),&mean_delta);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void normalize_cl(cl_mem x, cl_mem mean, cl_mem variance, int batch, int filters, int spatial)
+{
+    size_t N = batch*filters*spatial;
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(N,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"normalize_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&N);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&x);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&mean);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&variance);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&batch);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_int),&filters);
+    err|=clSetKernelArg(*clKernel,6,sizeof(cl_int),&spatial);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void l2normalize_cl(cl_mem x, cl_mem dx, int batch, int filters, int spatial)
+{
+    size_t N = batch*spatial;
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(N,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"l2norm_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&N);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&x);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&dx);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&batch);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_int),&filters);
+    err|=clSetKernelArg(*clKernel,6,sizeof(cl_int),&spatial);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void mean_cl(cl_mem x, int batch, int filters, int spatial, cl_mem mean)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(filters,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"mean_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&x);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_int),&batch);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&filters);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&spatial);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&mean);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void variance_cl(cl_mem x, cl_mem mean, int batch, int filters, int spatial, cl_mem variance)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(filters,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"variance_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&x);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&mean);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&batch);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&filters);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&spatial);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_mem),&variance);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void axpy_cl(int N, float ALPHA, cl_mem  X, int INCX, cl_mem  Y, int INCY)
+{
+    axpy_cl_offset(N, ALPHA, X, 0, INCX, Y, 0, INCY);
+}
+
+void pow_cl(int N, float ALPHA, cl_mem  X, int INCX, cl_mem  Y, int INCY)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(N,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"pow_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&N);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_float),&ALPHA);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&X);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&INCX);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&Y);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_int),&INCY);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void axpy_cl_offset(int N, float ALPHA, cl_mem  X, int OFFX, int INCX, cl_mem  Y, int OFFY, int INCY)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(N,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"axpy_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&N);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_float),&ALPHA);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&X);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&OFFX);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&INCX);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_mem),&Y);
+    err|=clSetKernelArg(*clKernel,6,sizeof(cl_int),&OFFY);
+    err|=clSetKernelArg(*clKernel,7,sizeof(cl_int),&INCY);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void copy_cl(int N, cl_mem  X, int INCX, cl_mem  Y, int INCY)
+{
+    copy_cl_offset(N, X, 0, INCX, Y, 0, INCY);
+}
+
+void mul_cl(int N, cl_mem  X, int INCX, cl_mem  Y, int INCY)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(N,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"mul_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&N);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&X);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&INCX);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&Y);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&INCY);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void copy_cl_offset(int N, cl_mem  X, int OFFX, int INCX, cl_mem  Y, int OFFY, int INCY)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(N,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"copy_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&N);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&X);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&OFFX);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&INCX);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&Y);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_int),&OFFY);
+    err|=clSetKernelArg(*clKernel,6,sizeof(cl_int),&INCY);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void flatten_cl(cl_mem x, int spatial, int layers, int batch, int forward, cl_mem out)
+{
+    int size = spatial*batch*layers;
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(size,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"flatten_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&size);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&x);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&spatial);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&layers);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&batch);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_int),&forward);
+    err|=clSetKernelArg(*clKernel,6,sizeof(cl_mem),&out);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void reorg_cl(cl_mem x, int w, int h, int c, int batch, int stride, int forward, cl_mem out)
+{
+    int size = w*h*c*batch;
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(size,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"reorg_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&size);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&x);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&w);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&h);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&c);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_int),&batch);
+    err|=clSetKernelArg(*clKernel,6,sizeof(cl_int),&stride);
+    err|=clSetKernelArg(*clKernel,7,sizeof(cl_int),&forward);
+    err|=clSetKernelArg(*clKernel,8,sizeof(cl_mem),&out);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void mask_cl(int N, cl_mem  X, float mask_num, cl_mem  mask, float val)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(N,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"mask_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&N);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&X);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_float),&mask_num);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&mask);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_float),&val);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void scale_mask_cl(int N, cl_mem  X, float mask_num, cl_mem  mask, float scale)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(N,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"scale_mask_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&N);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&X);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_float),&mask_num);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&mask);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_float),&scale);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void const_cl(int N, float ALPHA, cl_mem  X, int INCX)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(N,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"const_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&N);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_float),&ALPHA);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&X);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&INCX);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void constrain_cl(int N, float ALPHA, cl_mem  X, int INCX)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(N,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"constrain_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&N);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_float),&ALPHA);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&X);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&INCX);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void add_cl(int N, float ALPHA, cl_mem  X, int INCX)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(N,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"add_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&N);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_float),&ALPHA);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&X);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&INCX);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void scal_cl(int N, float ALPHA, cl_mem  X, int INCX)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(N,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"scal_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&N);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_float),&ALPHA);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&X);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&INCX);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void supp_cl(int N, float ALPHA, cl_mem  X, int INCX)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(N,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"supp_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&N);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_float),&ALPHA);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&X);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&INCX);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void fill_cl(int N, float ALPHA, cl_mem  X, int INCX)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(N,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"fill_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&N);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_float),&ALPHA);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&X);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&INCX);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void shortcut_cl(int batch, int w1, int h1, int c1, cl_mem add, int w2, int h2, int c2, float s1, float s2, cl_mem out)
+{
+    int minw = (w1 < w2) ? w1 : w2;
+    int minh = (h1 < h2) ? h1 : h2;
+    int minc = (c1 < c2) ? c1 : c2;
+
+    int stride = w1/w2;
+    int sample = w2/w1;
+    assert(stride == h1/h2);
+    assert(sample == h2/h1);
+    if(stride < 1) stride = 1;
+    if(sample < 1) sample = 1;
+
+    int size = batch * minw * minh * minc;
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(size,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"shortcut_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&size);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_int),&minw);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&minh);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&minc);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&stride);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_int),&sample);
+    err|=clSetKernelArg(*clKernel,6,sizeof(cl_int),&batch);
+    err|=clSetKernelArg(*clKernel,7,sizeof(cl_int),&w1);
+    err|=clSetKernelArg(*clKernel,8,sizeof(cl_int),&h1);
+    err|=clSetKernelArg(*clKernel,9,sizeof(cl_int),&c1);
+    err|=clSetKernelArg(*clKernel,10,sizeof(cl_mem),&add);
+    err|=clSetKernelArg(*clKernel,11,sizeof(cl_int),&w2);
+    err|=clSetKernelArg(*clKernel,12,sizeof(cl_int),&h2);
+    err|=clSetKernelArg(*clKernel,13,sizeof(cl_int),&c2);
+    err|=clSetKernelArg(*clKernel,14,sizeof(cl_float),&s1);
+    err|=clSetKernelArg(*clKernel,15,sizeof(cl_float),&s2);
+    err|=clSetKernelArg(*clKernel,16,sizeof(cl_mem),&out);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void smooth_l1_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(n,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"smooth_l1_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&n);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&pred);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&truth);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&delta);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&error);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void softmax_x_ent_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(n,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"softmax_x_ent_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&n);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&pred);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&truth);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&delta);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&error);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void logistic_x_ent_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(n,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"logistic_x_ent_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&n);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&pred);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&truth);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&delta);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&error);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void l2_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(n,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"l2_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&n);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&pred);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&truth);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&delta);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&error);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void l1_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(n,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"l1_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&n);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&pred);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&truth);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&delta);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&error);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void wgan_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(n,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"wgan_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&n);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&pred);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&truth);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&delta);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&error);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void deinter_cl(int NX, cl_mem X, int NY, cl_mem Y, int B, cl_mem OUT)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize((NX+NY)*B,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"deinter_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&NX);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&X);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&NY);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&Y);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&B);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_mem),&OUT);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void inter_cl(int NX, cl_mem X, int NY, cl_mem Y, int B, cl_mem OUT)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize((NX+NY)*B,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"inter_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&NX);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&X);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&NY);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&Y);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&B);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_mem),&OUT);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void weighted_sum_cl(cl_mem a, cl_mem b, cl_mem s, int num, cl_mem c)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(num,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"weighted_sum_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&num);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&a);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&b);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&s);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&c);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void weighted_delta_cl(cl_mem a, cl_mem b, cl_mem s, cl_mem da, cl_mem db, cl_mem ds, int num, cl_mem dc)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(num,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"weighted_delta_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&num);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&a);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&b);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&s);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&da);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_mem),&db);
+    err|=clSetKernelArg(*clKernel,6,sizeof(cl_mem),&ds);
+    err|=clSetKernelArg(*clKernel,7,sizeof(cl_mem),&dc);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void mult_add_into_cl(int num, cl_mem a, cl_mem b, cl_mem c)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(num,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"mult_add_into_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&num);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&a);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&b);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&c);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void softmax_cl(cl_mem input, int n, int batch, int batch_offset, int groups, int group_offset, int stride, float temp, cl_mem output)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(batch*groups,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"softmax_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&input);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_int),&n);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&batch);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&batch_offset);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&groups);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_int),&group_offset);
+    err|=clSetKernelArg(*clKernel,6,sizeof(cl_int),&stride);
+    err|=clSetKernelArg(*clKernel,7,sizeof(cl_float),&temp);
+    err|=clSetKernelArg(*clKernel,8,sizeof(cl_mem),&output);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+upsample_cl(cl_mem in, int w, int h, int c, int batch, int stride, int forward, float scale, cl_mem out)
+{
+    size_t size = w*h*c*batch*stride*stride;
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(size,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"upsample_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&size);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&in);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&w);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&h);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&c);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_int),&batch);
+    err|=clSetKernelArg(*clKernel,6,sizeof(cl_int),&stride);
+    err|=clSetKernelArg(*clKernel,7,sizeof(cl_int),&stride);
+    err|=clSetKernelArg(*clKernel,8,sizeof(cl_int),&forward);
+    err|=clSetKernelArg(*clKernel,9,sizeof(cl_float),&scale);
+    err|=clSetKernelArg(*clKernel,10,sizeof(cl_mem),&out);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+#endif
 

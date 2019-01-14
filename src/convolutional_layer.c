@@ -23,6 +23,11 @@ void swap_binary(convolutional_layer *l)
     l->weights_gpu = l->binary_weights_gpu;
     l->binary_weights_gpu = swap;
 #endif
+#ifdef OPENCL
+    cl_mem swap = l->weights_cl;
+    l->weights_cl = l->binary_weights_cl;
+    l->binary_weights_cl = swap;
+#endif
 }
 
 void binarize_weights(float *weights, int n, int size, float *binary)
@@ -319,7 +324,7 @@ convolutional_layer make_convolutional_layer(int batch, int h, int w, int c, int
 #endif
     }
 #endif
-#ifdef GPU
+#ifdef OPENCL
     l.forward_cl = forward_convolutional_layer_cl;
     l.backward_cl = backward_convolutional_layer_cl;
     l.update_cl = update_convolutional_layer_cl;
@@ -683,3 +688,245 @@ image *visualize_convolutional_layer(convolutional_layer l, char *window, image 
     return single_weights;
 }
 
+#ifdef OPENCL
+void binarize_cl(cl_mem x, int n, cl_mem binary)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(n,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram, "binarize_opencl", err);
+    err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &x);
+    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &n);
+    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_mem), &binary);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void binarize_input_cl(cl_mem input, int n, int size, cl_mem binary)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(size,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram, "binarize_input_opencl", err);
+    err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &x);
+    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &n);
+    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &size);
+    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_mem), &binary);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void binarize_weights_cl(cl_mem weights, int n, int size, cl_mem binary)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(n,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram, "binarize_weights_opencl", err);
+    err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &weights);
+    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &n);
+    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &size);
+    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_mem), &binary);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void smooth_layer(layer l, int size, float rate)
+{
+    int h = l.out_h;
+    int w = l.out_w;
+    int c = l.out_c;
+    size_t n = h*w*c*l.batch;
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(n,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram, "smooth_opencl", err);
+    err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &l.output_cl);
+    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &n);
+    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &l.w);
+    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_int), &l.h);
+    err|=clSetKernelArg(*clKernel, 4, sizeof(cl_int), &l.c);
+    err|=clSetKernelArg(*clKernel, 5, sizeof(cl_int), &size);
+    err|=clSetKernelArg(*clKernel, 6, sizeof(cl_float), &rate);
+    err|=clSetKernelArg(*clKernel, 7, sizeof(cl_mem), &l.delta_cl);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void forward_convolutional_layer_cl(convolutional_layer l, network net)
+{
+    fill_cl(l.outputs*l.batch, 0, l.output_cl, 1);
+    if(l.binary){
+        binarize_weights_cl(l.weights_cl, l.n, l.c/l.groups*l.size*l.size, l.binary_weights_cl);
+        swap_binary(&l);
+    }
+
+    if(l.xnor){
+        binarize_weights_cl(l.weights_cl, l.n, l.c/l.groups*l.size*l.size, l.binary_weights_cl);
+        swap_binary(&l);
+        binarize_cl(net.input_cl, l.c*l.h*l.w*l.batch, l.binary_input_cl);
+        net.input_cl = l.binary_input_cl;
+    }
+
+    int i, j;
+    int m = l.n/l.groups;
+    int k = l.size*l.size*l.c/l.groups;
+    int n = l.out_w*l.out_h;
+    for(i = 0; i < l.batch; ++i){
+        for(j = 0; j < l.groups; ++j){
+            cl_mem a = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.nweights, NULL, NULL);
+            clEnqueueCopyBuffer(*clCommandQueue,l.weights_cl,a,sizeof(float)*j*l.nweights/l.groups,0,sizeof(float)*l.nweights,0,NULL,NULL);
+            cl_mem b = net.workspace_cl;
+            cl_mem c = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*n*m, NULL, NULL);
+            clEnqueueCopyBuffer(*clCommandQueue,l.output_cl,c,sizeof(float)*(i*l.groups + j)*n*m,0,sizeof(float)*n*m,0,NULL,NULL);
+            cl_mem im = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.c/l.groups*l.h*l.w, NULL, NULL);
+            clEnqueueCopyBuffer(*clCommandQueue,l.input_cl,im,sizeof(float)*(i*l.groups + j)*l.c/l.groups*l.h*l.w,0,sizeof(float)*l.c/l.groups*l.h*l.w,0,NULL,NULL);
+
+            if (l.size == 1){
+                b = im;
+            } else {
+                im2col_cl(im, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, b);
+            }
+            gemm_cl(0,0,m,n,k,1,a,k,b,n,1,c,n);
+            cl_free(a);
+            cl_free(b);
+            cl_free(c);
+            cl_free(im);
+        }
+    }
+
+    if (l.batch_normalize) {
+        forward_batchnorm_layer_cl(l, net);
+    } else {
+        add_bias_cl(l.output_cl, l.biases_cl, l.batch, l.n, l.out_w*l.out_h);
+    }
+
+    activate_array_cl(l.output_cl, l.outputs*l.batch, l.activation);
+    //if(l.dot > 0) dot_error_cl(l);
+    if(l.binary || l.xnor) swap_binary(&l);
+}
+
+void backward_convolutional_layer_cl(convolutional_layer l, network net)
+{
+    if(l.smooth){
+        smooth_layer(l, 5, l.smooth);
+    }
+    //constrain_cl(l.outputs*l.batch, 1, l.delta_cl, 1);
+    gradient_array_cl(l.output_cl, l.outputs*l.batch, l.activation, l.delta_cl);
+
+    if(l.batch_normalize){
+        backward_batchnorm_layer_cl(l, net);
+    } else {
+        backward_bias_cl(l.bias_updates_cl, l.delta_cl, l.batch, l.n, l.out_w*l.out_h);
+    }
+    cl_mem original_input = net.input_cl;
+
+    if(l.xnor) net.input_cl = l.binary_input_cl
+    int m = l.n/l.groups;
+    int n = l.size*l.size*l.c/l.groups;
+    int k = l.out_w*l.out_h;
+
+    int i, j;
+    for(i = 0; i < l.batch; ++i){
+        for(j = 0; j < l.groups; ++j){
+            cl_mem a = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*m*k, NULL, NULL);
+            clEnqueueCopyBuffer(*clCommandQueue,l.delta_cl,a,sizeof(float)*(i*l.groups + j)*m*k,0,sizeof(float)*m*k,0,NULL,NULL);
+            cl_mem b = net.workspace_cl;
+            cl_mem c = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.nweights/l.groups, NULL, NULL);
+            clEnqueueCopyBuffer(*clCommandQueue,l.weight_updates_cl,c,sizeof(float)*j*l.nweights/l.groups,0,sizeof(float)*l.nweights/l.groups,0,NULL,NULL);
+            cl_mem im = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.c/l.groups*l.h*l.w, NULL, NULL);
+            clEnqueueCopyBuffer(*clCommandQueue,net.input_cl,im,sizeof(float)*(i*l.groups + j)*l.c/l.groups*l.h*l.w,0,sizeof(float)*l.c/l.groups*l.h*l.w,0,NULL,NULL);
+            cl_mem imd = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.c/l.groups*l.h*l.w, NULL, NULL);
+            clEnqueueCopyBuffer(*clCommandQueue,net.delta_cl,imd,sizeof(float)*(i*l.groups + j)*l.c/l.groups*l.h*l.w,0,sizeof(float)*l.c/l.groups*l.h*l.w,0,NULL,NULL);
+
+            im2col_cl(im, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, b);
+            gemm_cl(0,1,m,n,k,1,a,k,b,k,1,c,n);
+            cl_free(a);
+            cl_free(b);
+            cl_free(c);
+            if (net.delta_cl) {
+                if (l.binary || l.xnor) swap_binary(&l);
+                cl_mem a = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.nweights/l.groups, NULL, NULL);
+                clEnqueueCopyBuffer(*clCommandQueue,l.weights_cl,a,sizeof(float)*j*l.nweights/l.groups,0,sizeof(float)*l.nweights/l.groups,0,NULL,NULL);
+                cl_mem b = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*m*k, NULL, NULL);
+                clEnqueueCopyBuffer(*clCommandQueue,l.delta_cl,b,sizeof(float)*(i*l.groups + j)*m*k,0,sizeof(float)*m*k,0,NULL,NULL);
+                cl_mem c = net.workspace_cl;
+                if (l.size == 1) {
+                    c = imd;
+                }
+
+                gemm_cl(1,0,n,k,m,1,a,n,b,k,0,c,k);
+
+                if (l.size != 1) {
+                    col2im_cl(net.workspace_cl, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, imd);
+                }
+                if(l.binary || l.xnor) {
+                    swap_binary(&l);
+                }
+                cl_free(a);
+                cl_free(b);
+                cl_free(c);
+            }
+            if(l.xnor) gradient_array_cl(original_input + i*l.c*l.h*l.w, l.c*l.h*l.w, HARDTAN, net.delta_cl + i*l.c*l.h*l.w);
+            cl_free(im);
+            cl_free(imd);
+        }
+    }
+}
+
+void pull_convolutional_layer(layer l)
+{
+    cl_pull_array(l.weights_cl, l.weights, l.nweights);
+    cl_pull_array(l.biases_cl, l.biases, l.n);
+    cl_pull_array(l.weight_updates_cl, l.weight_updates, l.nweights);
+    cl_pull_array(l.bias_updates_cl, l.bias_updates, l.n);
+    if (l.batch_normalize){
+        cl_pull_array(l.scales_cl, l.scales, l.n);
+        cl_pull_array(l.rolling_mean_cl, l.rolling_mean, l.n);
+        cl_pull_array(l.rolling_variance_cl, l.rolling_variance, l.n);
+    }
+}
+
+void push_convolutional_layer(layer l)
+{
+    cl_push_array(l.weights_cl, l.weights, l.nweights);
+    cl_push_array(l.biases_cl, l.biases, l.n);
+    cl_push_array(l.weight_updates_cl, l.weight_updates, l.nweights);
+    cl_push_array(l.bias_updates_cl, l.bias_updates, l.n);
+    if (l.batch_normalize){
+        cl_push_array(l.scales_cl, l.scales, l.n);
+        cl_push_array(l.rolling_mean_cl, l.rolling_mean, l.n);
+        cl_push_array(l.rolling_variance_cl, l.rolling_variance, l.n);
+    }
+}
+
+void update_convolutional_layer_cl(layer l, update_args a)
+{
+    float learning_rate = a.learning_rate*l.learning_rate_scale;
+    float momentum = a.momentum;
+    float decay = a.decay;
+    int batch = a.batch;
+
+    if(a.adam){
+        adam_update_cl(l.weights_cl, l.weight_updates_cl, l.m_cl, l.v_cl, a.B1, a.B2, a.eps, decay, learning_rate, l.nweights, batch, a.t);
+        adam_update_cl(l.biases_cl, l.bias_updates_cl, l.bias_m_cl, l.bias_v_cl, a.B1, a.B2, a.eps, decay, learning_rate, l.n, batch, a.t);
+        if(l.scales_cl){
+            adam_update_cl(l.scales_cl, l.scale_updates_cl, l.scale_m_cl, l.scale_v_cl, a.B1, a.B2, a.eps, decay, learning_rate, l.n, batch, a.t);
+        }
+    }else{
+        axpy_cl(l.nweights, -decay*batch, l.weights_cl, 1, l.weight_updates_cl, 1);
+        axpy_cl(l.nweights, learning_rate/batch, l.weight_updates_cl, 1, l.weights_cl, 1);
+        scal_cl(l.nweights, momentum, l.weight_updates_cl, 1);
+
+        axpy_cl(l.n, learning_rate/batch, l.bias_updates_cl, 1, l.biases_cl, 1);
+        scal_cl(l.n, momentum, l.bias_updates_cl, 1);
+
+        if(l.scales_cl){
+            axpy_cl(l.n, learning_rate/batch, l.scale_updates_cl, 1, l.scales_cl, 1);
+            scal_cl(l.n, momentum, l.scale_updates_cl, 1);
+        }
+    }
+    if(l.clip){
+        constrain_cl(l.nweights, l.clip, l.weights_cl, 1);
+    }
+}
+#endif

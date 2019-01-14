@@ -47,6 +47,13 @@ maxpool_layer make_maxpool_layer(int batch, int h, int w, int c, int size, int s
     l.output_gpu  = cuda_make_array(l.output, output_size);
     l.delta_gpu   = cuda_make_array(l.delta, output_size);
     #endif
+    #ifdef OPENCL
+    l.forward_cl = forward_maxpool_layer_cl;
+    l.backward_cl = backward_maxpool_layer_cl;
+    l.indexes_cl = cl_make_int_array(0, output_size);
+    l.output_cl  = cl_make_array(l.output, output_size);
+    l.delta_cl   = cl_make_array(l.delta, output_size);
+    #endif
     fprintf(stderr, "max          %d x %d / %d  %4d x%4d x%4d   ->  %4d x%4d x%4d\n", size, size, stride, w, h, c, l.out_w, l.out_h, l.out_c);
     return l;
 }
@@ -132,4 +139,50 @@ void backward_maxpool_layer(const maxpool_layer l, network net)
         net.delta[index] += l.delta[i];
     }
 }
+#ifdef OPENCL
+void forward_maxpool_layer_cl(maxpool_layer layer, network net)
+{
+    int h = layer.out_h;
+    int w = layer.out_w;
+    int c = layer.c;
 
+    size_t n = h*w*c*layer.batch;
+    size_t globalWorkSize[3],localWorkSize[3];
+    setWorkItemSize(n,globalWorkSize,localWorkSize);
+    cl_int err;
+    *clKernel=clCreateKernel(*clProgram, "forward_maxpool_layer_opencl", &err);
+    err|=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &n);
+    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &layer.h);
+    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &layer.w);
+    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_int), &layer.c);
+    err|=clSetKernelArg(*clKernel, 4, sizeof(cl_int), &layer.stride);
+    err|=clSetKernelArg(*clKernel, 5, sizeof(cl_int), &layer.size);
+    err|=clSetKernelArg(*clKernel, 6, sizeof(cl_int), &layer.pad);
+    err|=clSetKernelArg(*clKernel, 7, sizeof(cl_mem), &net.input_cl);
+    err|=clSetKernelArg(*clKernel, 8, sizeof(cl_mem), &layer.output_cl);
+    err|=clSetKernelArg(*clKernel, 9, sizeof(cl_mem), &layer.indexes_cl);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
+    cl_error(err);
+}
+
+void backward_maxpool_layer_cl(maxpool_layer layer, network net)
+{
+    size_t n = layer.h*layer.w*layer.c*layer.batch;
+    size_t globalWorkSize[3],localWorkSize[3];
+    setWorkItemSize(n,globalWorkSize,localWorkSize);
+    cl_int err;
+    *clKernel=clCreateKernel(*clProgram, "backward_maxpool_layer_opencl", &err);
+    err|=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &n);
+    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &layer.h);
+    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &layer.w);
+    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_int), &layer.c);
+    err|=clSetKernelArg(*clKernel, 4, sizeof(cl_int), &layer.stride);
+    err|=clSetKernelArg(*clKernel, 5, sizeof(cl_int), &layer.size);
+    err|=clSetKernelArg(*clKernel, 6, sizeof(cl_int), &layer.pad);
+    err|=clSetKernelArg(*clKernel, 7, sizeof(cl_mem), &layer.delta_cl);
+    err|=clSetKernelArg(*clKernel, 8, sizeof(cl_mem), &net.delta_cl);
+    err|=clSetKernelArg(*clKernel, 9, sizeof(cl_mem), &layer.indexes_cl);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
+    cl_error(err);
+}
+#endif

@@ -186,4 +186,74 @@ void backward_cost_layer_gpu(const cost_layer l, network net)
     axpy_gpu(l.batch*l.inputs, l.scale, l.delta_gpu, 1, net.delta_gpu, 1);
 }
 #endif
+#ifdef OPENCL
+
+void pull_cost_layer(cost_layer l)
+{
+    cl_pull_array(l.delta_cl, l.delta, l.batch*l.inputs);
+}
+
+void push_cost_layer(cost_layer l)
+{
+    cl_push_array(l.delta_cl, l.delta, l.batch*l.inputs);
+}
+
+int float_abs_compare (const void * a, const void * b)
+{
+    float fa = *(const float*) a;
+    if(fa < 0) fa = -fa;
+    float fb = *(const float*) b;
+    if(fb < 0) fb = -fb;
+    return (fa > fb) - (fa < fb);
+}
+
+void forward_cost_layer_cl(cost_layer l, network net)
+{
+    if (!net.truth) return;
+    if(l.smooth){
+        scal_cl(l.batch*l.inputs, (1-l.smooth), net.truth_cl, 1);
+        add_cl(l.batch*l.inputs, l.smooth * 1./l.inputs, net.truth_cl, 1);
+    }
+
+    if(l.cost_type == SMOOTH){
+        smooth_l1_cl(l.batch*l.inputs, net.input_cl, net.truth_cl, l.delta_cl, l.output_cl);
+    } else if (l.cost_type == L1){
+        l1_cl(l.batch*l.inputs, net.input_cl, net.truth_cl, l.delta_cl, l.output_cl);
+    } else if (l.cost_type == WGAN){
+        wgan_cl(l.batch*l.inputs, net.input_cl, net.truth_cl, l.delta_cl, l.output_cl);
+    } else {
+        l2_cl(l.batch*l.inputs, net.input_cl, net.truth_cl, l.delta_cl, l.output_cl);
+    }
+
+    if (l.cost_type == SEG && l.noobject_scale != 1) {
+        scale_mask_cl(l.batch*l.inputs, l.delta_cl, 0, net.truth_cl, l.noobject_scale);
+        scale_mask_cl(l.batch*l.inputs, l.output_cl, 0, net.truth_cl, l.noobject_scale);
+    }
+    if (l.cost_type == MASKED) {
+        mask_cl(l.batch*l.inputs, net.delta_cl, SECRET_NUM, net.truth_cl, 0);
+    }
+
+    if(l.ratio){
+        cl_pull_array(l.delta_cl, l.delta, l.batch*l.inputs);
+        qsort(l.delta, l.batch*l.inputs, sizeof(float), float_abs_compare);
+        int n = (1-l.ratio) * l.batch*l.inputs;
+        float thresh = l.delta[n];
+        thresh = 0;
+        printf("%f\n", thresh);
+        supp_cl(l.batch*l.inputs, thresh, l.delta_cl, 1);
+    }
+
+    if(l.thresh){
+        supp_cl(l.batch*l.inputs, l.thresh*1./l.inputs, l.delta_cl, 1);
+    }
+
+    cl_pull_array(l.output_cl, l.output, l.batch*l.inputs);
+    l.cost[0] = sum_array(l.output, l.batch*l.inputs);
+}
+
+void backward_cost_layer_cl(const cost_layer l, network net)
+{
+    axpy_cl(l.batch*l.inputs, l.scale, l.delta_cl, 1, net.delta_cl, 1);
+}
+#endif
 

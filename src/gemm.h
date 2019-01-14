@@ -2,7 +2,6 @@
 #define GEMM_H
 
 #ifdef OPENCL
-        #include "CL/cl.h"
         #include "opencl_tool.h"
 #endif
 
@@ -35,5 +34,13 @@ void gemm_gpu(int TA, int TB, int M, int N, int K, float ALPHA,
         float *B, int ldb,
         float BETA,
         float *C, int ldc);
+#endif
+#ifdef OPENCL
+void gemm_cl(int TA, int TB, int M, int N, int K, float ALPHA, 
+        cl_mem A, int lda, 
+        cl_mem B, int ldb,
+        float BETA,
+        cl_mem C, int ldc);
+
 #endif
 #endif

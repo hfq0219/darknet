@@ -11,5 +11,8 @@ void backward_l2norm_layer(const layer l, network net);
 void forward_l2norm_layer_gpu(const layer l, network net);
 void backward_l2norm_layer_gpu(const layer l, network net);
 #endif
-
+#ifdef OPENCL
+void forward_l2norm_layer_cl(const layer l, network net);
+void backward_l2norm_layer_cl(const layer l, network net);
+#endif
 #endif

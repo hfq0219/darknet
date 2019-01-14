@@ -18,6 +18,10 @@ void backward_avgpool_layer(const avgpool_layer l, network net);
 void forward_avgpool_layer_gpu(avgpool_layer l, network net);
 void backward_avgpool_layer_gpu(avgpool_layer l, network net);
 #endif
+#ifdef OPENCL
+void forward_avgpool_layer_cl(avgpool_layer l, network net);
+void backward_avgpool_layer_cl(avgpool_layer l, network net);
+#endif
 
 #endif
 

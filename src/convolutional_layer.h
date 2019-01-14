@@ -24,6 +24,18 @@ void adam_update_gpu(float *w, float *d, float *m, float *v, float B1, float B2,
 void cudnn_convolutional_setup(layer *l);
 #endif
 #endif
+#ifdef OPENCL
+void forward_convolutional_layer_cl(convolutional_layer layer, network net);
+void backward_convolutional_layer_cl(convolutional_layer layer, network net);
+void update_convolutional_layer_cl(convolutional_layer layer, update_args a);
+
+void push_convolutional_layer(convolutional_layer layer);
+void pull_convolutional_layer(convolutional_layer layer);
+
+void add_bias_cl(cl_mem output,cl_mem biases, int batch, int n, int size);
+void backward_bias_cl(cl_mem bias_updates,cl_mem delta, int batch, int n, int size);
+void adam_update_cl(cl_mem w,cl_mem d,cl_mem m,cl_mem v, float B1, float B2, float eps, float decay, float rate, int n, int batch, int t);
+#endif
 
 convolutional_layer make_convolutional_layer(int batch, int h, int w, int c, int n, int groups, int size, int stride, int padding, ACTIVATION activation, int batch_normalize, int binary, int xnor, int adam);
 void resize_convolutional_layer(convolutional_layer *layer, int w, int h);

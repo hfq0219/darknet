@@ -32,6 +32,14 @@ layer make_logistic_layer(int batch, int inputs)
     l.loss_gpu = cuda_make_array(l.loss, inputs*batch); 
     l.delta_gpu = cuda_make_array(l.delta, inputs*batch); 
     #endif
+    #ifdef OPENCL
+    l.forward_cl = forward_logistic_layer_cl;
+    l.backward_cl = backward_logistic_layer_cl;
+
+    l.output_cl = cl_make_array(l.output, inputs*batch); 
+    l.loss_cl = cl_make_array(l.loss, inputs*batch); 
+    l.delta_cl = cl_make_array(l.delta, inputs*batch); 
+    #endif
     return l;
 }
 
@@ -66,6 +74,25 @@ void forward_logistic_layer_gpu(const layer l, network net)
 void backward_logistic_layer_gpu(const layer l, network net)
 {
     axpy_gpu(l.batch*l.inputs, 1, l.delta_gpu, 1, net.delta_gpu, 1);
+}
+
+#endif
+#ifdef OPENCL
+
+void forward_logistic_layer_cl(const layer l, network net)
+{
+    copy_cl(l.outputs*l.batch, net.input_cl, 1, l.output_cl, 1);
+    activate_array_cl(l.output_cl, l.outputs*l.batch, LOGISTIC);
+    if(net.truth){
+        logistic_x_ent_cl(l.batch*l.inputs, l.output_cl, net.truth_cl, l.delta_cl, l.loss_cl);
+        cl_pull_array(l.loss_cl, l.loss, l.batch*l.inputs);
+        l.cost[0] = sum_array(l.loss, l.batch*l.inputs);
+    }
+}
+
+void backward_logistic_layer_cl(const layer l, network net)
+{
+    axpy_cl(l.batch*l.inputs, 1, l.delta_cl, 1, net.delta_cl, 1);
 }
 
 #endif

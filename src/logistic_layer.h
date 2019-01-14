@@ -11,5 +11,8 @@ void backward_logistic_layer(const layer l, network net);
 void forward_logistic_layer_gpu(const layer l, network net);
 void backward_logistic_layer_gpu(const layer l, network net);
 #endif
-
+#ifdef OPENCL
+void forward_logistic_layer_cl(const layer l, network net);
+void backward_logistic_layer_cl(const layer l, network net);
+#endif
 #endif

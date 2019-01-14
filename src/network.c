@@ -223,7 +223,7 @@ void update_network(network *netp)
     }
 #endif
 #ifdef OPENCL
-    pdate_network_gpu(netp);   
+    update_network_cl(netp);   
     return;
 #endif
     network net = *netp;
@@ -277,7 +277,7 @@ void backward_network(network *netp)
     }
 #endif
 #ifdef OPENCL
-    backward_network_gpu(netp);   
+    backward_network_cl(netp);
     return;
 #endif
     network net = *netp;
@@ -750,6 +750,10 @@ void free_network(network *net)
 #ifdef GPU
     if(net->input_gpu) cuda_free(net->input_gpu);
     if(net->truth_gpu) cuda_free(net->truth_gpu);
+#endif
+#ifdef OPENCL
+    if(net->input_cl) cl_free(net->input_cl);
+    if(net->truth_cl) cl_free(net->truth_cl);
 #endif
     free(net);
 }
