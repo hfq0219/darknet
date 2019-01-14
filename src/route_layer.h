@@ -14,5 +14,9 @@ void resize_route_layer(route_layer *l, network *net);
 void forward_route_layer_gpu(const route_layer l, network net);
 void backward_route_layer_gpu(const route_layer l, network net);
 #endif
+#ifdef OPENCL
+void forward_route_layer_cl(const route_layer l, network net);
+void backward_route_layer_cl(const route_layer l, network net);
+#endif
 
 #endif

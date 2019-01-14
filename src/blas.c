@@ -415,7 +415,7 @@ void backward_bias_cl(cl_mem bias_updates, cl_mem delta, int batch, int n, int s
         err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
         cl_error(err);
     }else{
-        backward_bias_kernel<<<n, BLOCK>>>(bias_updates, delta, batch, n, size);
+        //backward_bias_kernel<<<n, BLOCK>>>(bias_updates, delta, batch, n, size);
     }
 }
 

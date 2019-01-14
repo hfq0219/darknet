@@ -178,22 +178,22 @@ void forward_normalization_layer_cl(const layer layer, network net)
     scal_cl(w*h*c*layer.batch, 0, layer.squared_cl, 1);
 
     for(b = 0; b < layer.batch; ++b){
-        float *squared = layer.squared_cl + w*h*c*b;
-        float *norms   = layer.norms_cl + w*h*c*b;
-        float *input   = net.input_cl + w*h*c*b;
+        cl_mem squared = layer.squared_cl /*+ w*h*c*b*/;
+        cl_mem norms   = layer.norms_cl /*+ w*h*c*b*/;
+        cl_mem input   = net.input_cl /*+ w*h*c*b*/;
         pow_cl(w*h*c, 2, input, 1, squared, 1);
 
         const_cl(w*h, layer.kappa, norms, 1);
         for(k = 0; k < layer.size/2; ++k){
-            axpy_cl(w*h, layer.alpha, squared + w*h*k, 1, norms, 1);
+            axpy_cl(w*h, layer.alpha, squared /*+ w*h*k*/, 1, norms, 1);
         }
 
         for(k = 1; k < layer.c; ++k){
-            copy_cl(w*h, norms + w*h*(k-1), 1, norms + w*h*k, 1);
+            copy_cl(w*h, norms /*+ w*h*(k-1)*/, 1, norms /*+ w*h*k*/, 1);
             int prev = k - ((layer.size-1)/2) - 1;
             int next = k + (layer.size/2);
-            if(prev >= 0)      axpy_cl(w*h, -layer.alpha, squared + w*h*prev, 1, norms + w*h*k, 1);
-            if(next < layer.c) axpy_cl(w*h,  layer.alpha, squared + w*h*next, 1, norms + w*h*k, 1);
+            if(prev >= 0)      axpy_cl(w*h, -layer.alpha, squared /*+ w*h*prev*/, 1, norms /*+ w*h*k*/, 1);
+            if(next < layer.c) axpy_cl(w*h,  layer.alpha, squared /*+ w*h*next*/, 1, norms /*+ w*h*k*/, 1);
         }
     }
     pow_cl(w*h*c*layer.batch, -layer.beta, layer.norms_cl, 1, layer.output_cl, 1);

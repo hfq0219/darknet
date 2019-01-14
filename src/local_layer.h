@@ -17,6 +17,14 @@ void update_local_layer_gpu(local_layer layer, update_args a);
 void push_local_layer(local_layer layer);
 void pull_local_layer(local_layer layer);
 #endif
+#ifdef OPENCL
+void forward_local_layer_cl(local_layer layer, network net);
+void backward_local_layer_cl(local_layer layer, network net);
+void update_local_layer_cl(local_layer layer, update_args a);
+
+void push_local_layer(local_layer layer);
+void pull_local_layer(local_layer layer);
+#endif
 
 local_layer make_local_layer(int batch, int h, int w, int c, int n, int size, int stride, int pad, ACTIVATION activation);
 

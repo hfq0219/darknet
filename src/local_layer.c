@@ -304,3 +304,113 @@ void push_local_layer(local_layer l)
     cuda_push_array(l.biases_gpu, l.biases, l.outputs);
 }
 #endif
+#ifdef OPENCL
+
+void forward_local_layer_cl(const local_layer l, network net)
+{
+    int out_h = local_out_height(l);
+    int out_w = local_out_width(l);
+    int i, j;
+    int locations = out_h * out_w;
+
+    for(i = 0; i < l.batch; ++i){
+        copy_cl(l.outputs, l.biases_cl, 1, l.output_cl /*+ i*l.outputs*/, 1);
+    }
+
+    for(i = 0; i < l.batch; ++i){
+        cl_mem input = net.input_cl /*+ i*l.w*l.h*l.c*/;
+        im2col_cl(input, l.c, l.h, l.w, 
+                l.size, l.stride, l.pad, net.workspace_cl);
+        cl_mem output = l.output_cl /*+ i*l.outputs*/;
+        for(j = 0; j < locations; ++j){
+            cl_mem a = l.weights_cl /*+ j*l.size*l.size*l.c*l.n*/;
+            cl_mem b = net.workspace_cl /*+ j*/;
+            cl_mem c = output /*+ j*/;
+
+            int m = l.n;
+            int n = 1;
+            int k = l.size*l.size*l.c;
+
+            gemm_cl(0,0,m,n,k,1,a,k,b,locations,1,c,locations);
+        }
+    }
+    activate_array_cl(l.output_cl, l.outputs*l.batch, l.activation);
+}
+
+void backward_local_layer_cl(local_layer l, network net)
+{
+    int i, j;
+    int locations = l.out_w*l.out_h;
+
+    gradient_array_cl(l.output_cl, l.outputs*l.batch, l.activation, l.delta_cl);
+    for(i = 0; i < l.batch; ++i){
+        axpy_cl(l.outputs, 1, l.delta_cl /*+ i*l.outputs*/, 1, l.bias_updates_cl, 1);
+    }
+
+    for(i = 0; i < l.batch; ++i){
+        cl_mem input = net.input_cl /*+ i*l.w*l.h*l.c*/;
+        im2col_cl(input, l.c, l.h, l.w, 
+                l.size, l.stride, l.pad, net.workspace_cl);
+
+        for(j = 0; j < locations; ++j){ 
+            cl_mem a = l.delta_cl /*+ i*l.outputs + j*/;
+            cl_mem b = net.workspace_cl /*+ j*/;
+            cl_mem c = l.weight_updates_cl /*+ j*l.size*l.size*l.c*l.n*/;
+            int m = l.n;
+            int n = l.size*l.size*l.c;
+            int k = 1;
+
+            gemm_cl(0,1,m,n,k,1,a,locations,b,locations,1,c,n);
+        }
+
+        if(net.delta_cl){
+            for(j = 0; j < locations; ++j){ 
+                cl_mem a = l.weights_cl /*+ j*l.size*l.size*l.c*l.n*/;
+                cl_mem b = l.delta_cl /*+ i*l.outputs + j*/;
+                cl_mem c = net.workspace_cl /*+ j*/;
+
+                int m = l.size*l.size*l.c;
+                int n = 1;
+                int k = l.n;
+
+                gemm_cl(1,0,m,n,k,1,a,m,b,locations,0,c,locations);
+            }
+
+            col2im_cl(net.workspace_cl, l.c,  l.h,  l.w,  l.size,  l.stride, l.pad, net.delta_cl/*+i*l.c*l.h*l.w*/);
+        }
+    }
+}
+
+void update_local_layer_cl(local_layer l, update_args a)
+{
+    float learning_rate = a.learning_rate*l.learning_rate_scale;
+    float momentum = a.momentum;
+    float decay = a.decay;
+    int batch = a.batch;
+
+    int locations = l.out_w*l.out_h;
+    int size = l.size*l.size*l.c*l.n*locations;
+    axpy_cl(l.outputs, learning_rate/batch, l.bias_updates_cl, 1, l.biases_cl, 1);
+    scal_cl(l.outputs, momentum, l.bias_updates_cl, 1);
+
+    axpy_cl(size, -decay*batch, l.weights_cl, 1, l.weight_updates_cl, 1);
+    axpy_cl(size, learning_rate/batch, l.weight_updates_cl, 1, l.weights_cl, 1);
+    scal_cl(size, momentum, l.weight_updates_cl, 1);
+}
+
+void pull_local_layer(local_layer l)
+{
+    int locations = l.out_w*l.out_h;
+    int size = l.size*l.size*l.c*l.n*locations;
+    cl_pull_array(l.weights_cl, l.weights, size);
+    cl_pull_array(l.biases_cl, l.biases, l.outputs);
+}
+
+void push_local_layer(local_layer l)
+{
+    int locations = l.out_w*l.out_h;
+    int size = l.size*l.size*l.c*l.n*locations;
+    cl_push_array(l.weights_cl, l.weights, size);
+    cl_push_array(l.biases_cl, l.biases, l.outputs);
+}
+#endif

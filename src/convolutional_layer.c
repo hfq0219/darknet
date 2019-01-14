@@ -24,9 +24,9 @@ void swap_binary(convolutional_layer *l)
     l->binary_weights_gpu = swap;
 #endif
 #ifdef OPENCL
-    cl_mem swap = l->weights_cl;
+    cl_mem swap_cl = l->weights_cl;
     l->weights_cl = l->binary_weights_cl;
-    l->binary_weights_cl = swap;
+    l->binary_weights_cl = swap_cl;
 #endif
 }
 
@@ -708,7 +708,7 @@ void binarize_input_cl(cl_mem input, int n, int size, cl_mem binary)
     size_t globalSize[3],localSize[3];
     setWorkItemSize(size,globalSize,localSize);
     *clKernel=clCreateKernel(*clProgram, "binarize_input_opencl", err);
-    err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &x);
+    err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &input);
     err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &n);
     err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &size);
     err|=clSetKernelArg(*clKernel, 3, sizeof(cl_mem), &binary);
@@ -779,7 +779,7 @@ void forward_convolutional_layer_cl(convolutional_layer l, network net)
             cl_mem c = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*n*m, NULL, NULL);
             clEnqueueCopyBuffer(*clCommandQueue,l.output_cl,c,sizeof(float)*(i*l.groups + j)*n*m,0,sizeof(float)*n*m,0,NULL,NULL);
             cl_mem im = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.c/l.groups*l.h*l.w, NULL, NULL);
-            clEnqueueCopyBuffer(*clCommandQueue,l.input_cl,im,sizeof(float)*(i*l.groups + j)*l.c/l.groups*l.h*l.w,0,sizeof(float)*l.c/l.groups*l.h*l.w,0,NULL,NULL);
+            clEnqueueCopyBuffer(*clCommandQueue,net.input_cl,im,sizeof(float)*(i*l.groups + j)*l.c/l.groups*l.h*l.w,0,sizeof(float)*l.c/l.groups*l.h*l.w,0,NULL,NULL);
 
             if (l.size == 1){
                 b = im;
@@ -820,7 +820,7 @@ void backward_convolutional_layer_cl(convolutional_layer l, network net)
     }
     cl_mem original_input = net.input_cl;
 
-    if(l.xnor) net.input_cl = l.binary_input_cl
+    if(l.xnor) net.input_cl = l.binary_input_cl;
     int m = l.n/l.groups;
     int n = l.size*l.size*l.c/l.groups;
     int k = l.out_w*l.out_h;
@@ -866,7 +866,7 @@ void backward_convolutional_layer_cl(convolutional_layer l, network net)
                 cl_free(b);
                 cl_free(c);
             }
-            if(l.xnor) gradient_array_cl(original_input + i*l.c*l.h*l.w, l.c*l.h*l.w, HARDTAN, net.delta_cl + i*l.c*l.h*l.w);
+            //if(l.xnor) gradient_array_cl(original_input + i*l.c*l.h*l.w, l.c*l.h*l.w, HARDTAN, net.delta_cl /*+ i*l.c*l.h*l.w*/);
             cl_free(im);
             cl_free(imd);
         }

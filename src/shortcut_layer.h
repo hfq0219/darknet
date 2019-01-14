@@ -13,5 +13,9 @@ void resize_shortcut_layer(layer *l, int w, int h);
 void forward_shortcut_layer_gpu(const layer l, network net);
 void backward_shortcut_layer_gpu(const layer l, network net);
 #endif
+#ifdef OPENCL
+void forward_shortcut_layer_cl(const layer l, network net);
+void backward_shortcut_layer_cl(const layer l, network net);
+#endif
 
 #endif

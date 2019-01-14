@@ -116,3 +116,23 @@ void backward_upsample_layer_gpu(const layer l, network net)
     }
 }
 #endif
+#ifdef OPENCL
+void forward_upsample_layer_cl(const layer l, network net)
+{
+    fill_cl(l.outputs*l.batch, 0, l.output_cl, 1);
+    if(l.reverse){
+        upsample_cl(l.output_cl, l.out_w, l.out_h, l.c, l.batch, l.stride, 0, l.scale, net.input_cl);
+    }else{
+        upsample_cl(net.input_cl, l.w, l.h, l.c, l.batch, l.stride, 1, l.scale, l.output_cl);
+    }
+}
+
+void backward_upsample_layer_cl(const layer l, network net)
+{
+    if(l.reverse){
+        upsample_cl(l.delta_cl, l.out_w, l.out_h, l.c, l.batch, l.stride, 1, l.scale, net.delta_cl);
+    }else{
+        upsample_cl(net.delta_cl, l.w, l.h, l.c, l.batch, l.stride, 0, l.scale, l.delta_cl);
+    }
+}
+#endif

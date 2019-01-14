@@ -254,6 +254,21 @@ void resize_deconvolutional_layer(layer *l, int h, int w)
         cudnnSetTensor4dDescriptor(l->normTensorDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 1, l->out_c, 1, 1); 
     #endif
 #endif
+#ifdef OPENCL
+    cl_free(l->delta_cl);
+    cl_free(l->output_cl);
+
+    l->delta_cl =  cl_make_array(l->delta,  l->batch*l->outputs);
+    l->output_cl = cl_make_array(l->output, l->batch*l->outputs);
+
+    if(l->batch_normalize){
+        cl_free(l->x_cl);
+        cl_free(l->x_norm_cl);
+
+        l->x_cl = cl_make_array(l->output, l->batch*l->outputs);
+        l->x_norm_cl = cl_make_array(l->output, l->batch*l->outputs);
+    }
+#endif
     l->workspace_size = get_workspace_size(*l);
 }
 
@@ -346,5 +361,132 @@ void update_deconvolutional_layer(layer l, update_args a)
     scal_cpu(size, momentum, l.weight_updates, 1);
 }
 
+#ifdef OPENCL
+void forward_deconvolutional_layer_cl(layer l, network net)
+{
+    int i;
 
+    int m = l.size*l.size*l.n;
+    int n = l.h*l.w;
+    int k = l.c;
+
+    fill_cl(l.outputs*l.batch, 0, l.output_cl, 1);
+
+    for(i = 0; i < l.batch; ++i){
+        cl_mem a = l.weights_cl;
+        cl_mem b = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.c*l.h*l.w, NULL, NULL);
+        clEnqueueCopyBuffer(*clCommandQueue,net.input_cl,b,sizeof(float)*i*l.c*l.h*l.w,0,sizeof(float)*l.c*l.h*l.w,0,NULL,NULL);
+        cl_mem c = net.workspace_cl;
+
+        gemm_cl(1,0,m,n,k,1,a,m,b,n,0,c,n);
+
+        col2im_cl(net.workspace_cl, l.out_c, l.out_h, l.out_w, l.size, l.stride, l.pad, l.output_cl);//+i*l.outputs);
+    }
+    if (l.batch_normalize) {
+        forward_batchnorm_layer_cl(l, net);
+    } else {
+        add_bias_cl(l.output_cl, l.biases_cl, l.batch, l.n, l.out_w*l.out_h);
+    }
+    activate_array_cl(l.output_cl, l.batch*l.n*l.out_w*l.out_h, l.activation);
+}
+
+void backward_deconvolutional_layer_cl(layer l, network net)
+{
+    int i;
+
+    //constrain_gpu(l.outputs*l.batch, 1, l.delta_gpu, 1);
+    gradient_array_cl(l.output_cl, l.outputs*l.batch, l.activation, l.delta_cl);
+
+    if(l.batch_normalize){
+        backward_batchnorm_layer_cl(l, net);
+    } else {
+        backward_bias_cl(l.bias_updates_cl, l.delta_cl, l.batch, l.n, l.out_w*l.out_h);
+    }
+
+    //if(net.delta_gpu) memset(net.delta_gpu, 0, l.batch*l.h*l.w*l.c*sizeof(float));
+
+    for(i = 0; i < l.batch; ++i){
+        int m = l.c;
+        int n = l.size*l.size*l.n;
+        int k = l.h*l.w;
+
+        cl_mem a = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*m*k, NULL, NULL);
+        clEnqueueCopyBuffer(*clCommandQueue,net.input_cl,a,sizeof(float)*i*m*k,0,sizeof(float)*m*k,0,NULL,NULL);
+        cl_mem b = net.workspace_cl;
+        cl_mem c = l.weight_updates_cl;
+
+        im2col_cl(l.delta_cl/* + i*l.outputs*/, l.out_c, l.out_h, l.out_w, 
+                l.size, l.stride, l.pad, b);
+        gemm_cl(0,1,m,n,k,1,a,k,b,k,1,c,n);
+
+        if(net.delta_cl){
+            int m = l.c;
+            int n = l.h*l.w;
+            int k = l.size*l.size*l.n;
+
+            cl_mem a = l.weights_cl;
+            cl_mem b = net.workspace_cl;
+            cl_mem c = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*m*n, NULL, NULL);
+            clEnqueueCopyBuffer(*clCommandQueue,net.delta_cl,c,sizeof(float)*i*m*n,0,sizeof(float)*m*n,0,NULL,NULL);
+
+            gemm_cl(0,0,m,n,k,1,a,k,b,n,1,c,n);
+        }
+    }
+}
+
+void pull_deconvolutional_layer(layer l)
+{
+    cl_pull_array(l.weights_cl, l.weights, l.c*l.n*l.size*l.size);
+    cl_pull_array(l.biases_cl, l.biases, l.n);
+    cl_pull_array(l.weight_updates_cl, l.weight_updates, l.c*l.n*l.size*l.size);
+    cl_pull_array(l.bias_updates_cl, l.bias_updates, l.n);
+    if (l.batch_normalize){
+        cl_pull_array(l.scales_cl, l.scales, l.n);
+        cl_pull_array(l.rolling_mean_cl, l.rolling_mean, l.n);
+        cl_pull_array(l.rolling_variance_cl, l.rolling_variance, l.n);
+    }
+}
+
+void push_deconvolutional_layer(layer l)
+{
+    cl_push_array(l.weights_cl, l.weights, l.c*l.n*l.size*l.size);
+    cl_push_array(l.biases_cl, l.biases, l.n);
+    cl_push_array(l.weight_updates_cl, l.weight_updates, l.c*l.n*l.size*l.size);
+    cl_push_array(l.bias_updates_cl, l.bias_updates, l.n);
+    if (l.batch_normalize){
+        cl_push_array(l.scales_cl, l.scales, l.n);
+        cl_push_array(l.rolling_mean_cl, l.rolling_mean, l.n);
+        cl_push_array(l.rolling_variance_cl, l.rolling_variance, l.n);
+    }
+}
+
+void update_deconvolutional_layer_cl(layer l, update_args a)
+{
+    float learning_rate = a.learning_rate*l.learning_rate_scale;
+    float momentum = a.momentum;
+    float decay = a.decay;
+    int batch = a.batch;
+
+    if(a.adam){
+        adam_update_cl(l.weights_cl, l.weight_updates_cl, l.m_cl, l.v_cl, a.B1, a.B2, a.eps, decay, learning_rate, l.nweights, batch, a.t);
+        adam_update_cl(l.biases_cl, l.bias_updates_cl, l.bias_m_cl, l.bias_v_cl, a.B1, a.B2, a.eps, decay, learning_rate, l.n, batch, a.t);
+        if(l.scales_cl){
+            adam_update_cl(l.scales_cl, l.scale_updates_cl, l.scale_m_cl, l.scale_v_cl, a.B1, a.B2, a.eps, decay, learning_rate, l.n, batch, a.t);
+        }
+    }else{
+        axpy_cl(l.nweights, -decay*batch, l.weights_cl, 1, l.weight_updates_cl, 1);
+        axpy_cl(l.nweights, learning_rate/batch, l.weight_updates_cl, 1, l.weights_cl, 1);
+        scal_cl(l.nweights, momentum, l.weight_updates_cl, 1);
+
+        axpy_cl(l.n, learning_rate/batch, l.bias_updates_cl, 1, l.biases_cl, 1);
+        scal_cl(l.n, momentum, l.bias_updates_cl, 1);
+
+        if(l.scales_cl){
+            axpy_cl(l.n, learning_rate/batch, l.scale_updates_cl, 1, l.scales_cl, 1);
+            scal_cl(l.n, momentum, l.scale_updates_cl, 1);
+        }
+    }
+}
+
+#endif
 

@@ -383,4 +383,32 @@ void backward_yolo_layer_gpu(const layer l, network net)
     axpy_gpu(l.batch*l.inputs, 1, l.delta_gpu, 1, net.delta_gpu, 1);
 }
 #endif
+#ifdef OPENCL
 
+void forward_yolo_layer_cl(const layer l, network net)
+{
+    copy_cl(l.batch*l.inputs, net.input_cl, 1, l.output_cl, 1);
+    int b, n;
+    for (b = 0; b < l.batch; ++b){
+        for(n = 0; n < l.n; ++n){
+            int index = entry_index(l, b, n*l.w*l.h, 0);
+            activate_array_cl(l.output_cl /*+ index*/, 2*l.w*l.h, LOGISTIC);
+            index = entry_index(l, b, n*l.w*l.h, 4);
+            activate_array_cl(l.output_cl /*+ index*/, (1+l.classes)*l.w*l.h, LOGISTIC);
+        }
+    }
+    if(!net.train || l.onlyforward){
+        cl_pull_array(l.output_cl, l.output, l.batch*l.outputs);
+        return;
+    }
+
+    cl_pull_array(l.output_cl, net.input, l.batch*l.inputs);
+    forward_yolo_layer(l, net);
+    cl_push_array(l.delta_cl, l.delta, l.batch*l.outputs);
+}
+
+void backward_yolo_layer_cl(const layer l, network net)
+{
+    axpy_cl(l.batch*l.inputs, 1, l.delta_cl, 1, net.delta_cl, 1);
+}
+#endif

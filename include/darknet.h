@@ -427,8 +427,11 @@ struct layer{
 #endif
 #endif
 #ifdef OPENCL
-    cl_mem indexes_gpu;
+    cl_mem indexes_cl;
 
+    cl_mem z_cl;
+    cl_mem r_cl;
+    cl_mem h_cl;
     cl_mem m_cl;
     cl_mem v_cl;
     cl_mem bias_m_cl;

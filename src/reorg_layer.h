@@ -15,6 +15,10 @@ void backward_reorg_layer(const layer l, network net);
 void forward_reorg_layer_gpu(layer l, network net);
 void backward_reorg_layer_gpu(layer l, network net);
 #endif
+#ifdef OPENCL
+void forward_reorg_layer_cl(layer l, network net);
+void backward_reorg_layer_cl(layer l, network net);
+#endif
 
 #endif
 

@@ -235,13 +235,14 @@ __kernel void scale_bias_opencl(__global float *output,__global float *biases, i
     int batch = get_group_id(2);
 
     if(offset < size) output[(batch*n+filter)*size + offset] *= biases[filter];
-}/*
+}
 __kernel void backward_scale_opencl(__global float *x_norm,__global float *delta, int batch, int n, int size,__global float *scale_updates)
-{///////******** 
-    __shared__ float part[BLOCK];
+{
+    int BLOCK=1024;
+    __local float part[BLOCK];
     int i,b;
-    int filter = blockIdx.x;
-    int p = threadIdx.x;
+    int filter = get_group_id(0);
+    int p = get_local_id(0);
     float sum = 0;
     for(b = 0; b < batch; ++b){
         for(i = 0; i < size; i += BLOCK){
@@ -250,11 +251,11 @@ __kernel void backward_scale_opencl(__global float *x_norm,__global float *delta
         }
     }
     part[p] = sum;
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     if (p == 0) {
         for(i = 0; i < BLOCK; ++i) scale_updates[filter] += part[i];
     }
-}*/
+}
 __kernel void add_bias_opencl(__global float *output,__global float *biases, int batch, int n, int size)
 {
     int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
@@ -285,13 +286,13 @@ __kernel void backward_bias_conn_opencl(__global float *bias_updates,__global fl
     }
     bias_updates[index] += sum;
 }
-/*
 __kernel void backward_bias_opencl(__global float *bias_updates,__global float *delta, int batch, int n, int size)
-{///////******** 
-    __shared__ float part[BLOCK];
+{
+    int BLOCK=1024;
+    __local float part[BLOCK];
     int i,b;
-    int filter = blockIdx.x;
-    int p = threadIdx.x;
+    int filter = get_group_id(0);
+    int p = get_local_id(0);
     float sum = 0;
     for(b = 0; b < batch; ++b){
         for(i = 0; i < size; i += BLOCK){
@@ -300,11 +301,11 @@ __kernel void backward_bias_opencl(__global float *bias_updates,__global float *
         }
     }
     part[p] = sum;
-    __syncthreads();
+    barrier(CLK_LOCAL_MEM_FENCE);
     if (p == 0) {
         for(i = 0; i < BLOCK; ++i) bias_updates[filter] += part[i];
     }
-}*/
+}
 __kernel void adam_opencl(int N,__global float *x,__global float *m,__global float *v, float B1, float B2, float rate, float eps, int t)
 {
     int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
@@ -745,13 +746,10 @@ __kernel void upsample_opencl(int N,__global float *x, int w, int h, int c, int 
 
     int in_index = b*w*h*c + in_c*w*h + in_h*w + in_w;
 
-
     if(forward) out[out_index] += scale * x[in_index];
     else atomic_add(x+in_index, scale * out[out_index]);
 }
 //////////////----------------------------------------------------------------------------///////////
-
-
 
 /////////////-----------------------convolutional_layer.c-----------------------------------////////////
 __kernel void binarize_opencl(__global float *x, int n,__global float *binary)
@@ -833,7 +831,7 @@ __kernel void smooth_opencl(__global float *x, int n, int w, int h, int c, int s
 typedef enum{
     LOGISTIC, RELU, RELIE, LINEAR, RAMP, TANH, PLSE, LEAKY, ELU, LOGGY, STAIR, HARDTAN, LHTAN, SELU
 }ACTIVATION;
-//__device__ cuda
+
 float lhtan_activate_kernel(float x)
 {
     if(x < 0) return .001f*x;
@@ -845,7 +843,6 @@ float lhtan_gradient_kernel(float x)
     if(x > 0 && x < 1) return 1;
     return .001;
 }
-
 float hardtan_activate_kernel(float x)
 {
     if (x < -1) return -1;
@@ -874,7 +871,6 @@ float stair_activate_kernel(float x)
     if (n%2 == 0) return floor(x/2);
     else return (x - n) + floor(x/2);
 }
-
 float hardtan_gradient_kernel(float x)
 {
     if (x > -1 && x < 1) return 1;
@@ -900,7 +896,6 @@ float stair_gradient_kernel(float x)
     if (floor(x) == x) return 0;
     return 1;
 }
-
 float activate_kernel(float x, ACTIVATION a)
 {
     switch(a){
@@ -935,7 +930,6 @@ float activate_kernel(float x, ACTIVATION a)
     }
     return 0;
 }
-
 float gradient_kernel(float x, ACTIVATION a)
 {
     switch(a){

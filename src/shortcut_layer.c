@@ -100,3 +100,18 @@ void backward_shortcut_layer_gpu(const layer l, network net)
     shortcut_gpu(l.batch, l.out_w, l.out_h, l.out_c, l.delta_gpu, l.w, l.h, l.c, 1, l.beta, net.layers[l.index].delta_gpu);
 }
 #endif
+#ifdef OPENCL
+void forward_shortcut_layer_cl(const layer l, network net)
+{
+    copy_cl(l.outputs*l.batch, net.input_cl, 1, l.output_cl, 1);
+    shortcut_cl(l.batch, l.w, l.h, l.c, net.layers[l.index].output_cl, l.out_w, l.out_h, l.out_c, l.alpha, l.beta, l.output_cl);
+    activate_array_cl(l.output_cl, l.outputs*l.batch, l.activation);
+}
+
+void backward_shortcut_layer_cl(const layer l, network net)
+{
+    gradient_array_cl(l.output_cl, l.outputs*l.batch, l.activation, l.delta_cl);
+    axpy_cl(l.outputs*l.batch, l.alpha, l.delta_cl, 1, net.delta_cl, 1);
+    shortcut_cl(l.batch, l.out_w, l.out_h, l.out_c, l.delta_cl, l.w, l.h, l.c, 1, l.beta, net.layers[l.index].delta_cl);
+}
+#endif

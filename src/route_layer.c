@@ -144,3 +144,34 @@ void backward_route_layer_gpu(const route_layer l, network net)
     }
 }
 #endif
+#ifdef OPENCL
+void forward_route_layer_cl(const route_layer l, network net)
+{
+    int i, j;
+    int offset = 0;
+    for(i = 0; i < l.n; ++i){
+        int index = l.input_layers[i];
+        cl_mem input = net.layers[index].output_cl;
+        int input_size = l.input_sizes[i];
+        for(j = 0; j < l.batch; ++j){
+            copy_cl(input_size, input /*+ j*input_size*/, 1, l.output_cl /*+ offset + j*l.outputs*/, 1);
+        }
+        offset += input_size;
+    }
+}
+
+void backward_route_layer_cl(const route_layer l, network net)
+{
+    int i, j;
+    int offset = 0;
+    for(i = 0; i < l.n; ++i){
+        int index = l.input_layers[i];
+        cl_mem delta = net.layers[index].delta_cl;
+        int input_size = l.input_sizes[i];
+        for(j = 0; j < l.batch; ++j){
+            axpy_cl(input_size, 1, l.delta_cl /*+ offset + j*l.outputs*/, 1, delta /*+ j*input_size*/, 1);
+        }
+        offset += input_size;
+    }
+}
+#endif

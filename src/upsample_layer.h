@@ -11,5 +11,9 @@ void resize_upsample_layer(layer *l, int w, int h);
 void forward_upsample_layer_gpu(const layer l, network net);
 void backward_upsample_layer_gpu(const layer l, network net);
 #endif
+#ifdef OPENCL
+void forward_upsample_layer_cl(const layer l, network net);
+void backward_upsample_layer_cl(const layer l, network net);
+#endif
 
 #endif

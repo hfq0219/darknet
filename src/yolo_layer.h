@@ -15,5 +15,9 @@ int yolo_num_detections(layer l, float thresh);
 void forward_yolo_layer_gpu(const layer l, network net);
 void backward_yolo_layer_gpu(layer l, network net);
 #endif
+#ifdef OPENCL
+void forward_yolo_layer_cl(const layer l, network net);
+void backward_yolo_layer_cl(layer l, network net);
+#endif
 
 #endif
