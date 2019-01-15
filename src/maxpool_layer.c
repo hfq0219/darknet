@@ -162,7 +162,7 @@ void forward_maxpool_layer_cl(maxpool_layer layer, network net)
     err|=clSetKernelArg(*clKernel, 8, sizeof(cl_mem), &layer.output_cl);
     err|=clSetKernelArg(*clKernel, 9, sizeof(cl_mem), &layer.indexes_cl);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
-    cl_error(err);
+    cl_error(err,"forward_maxpool_layer_cl");
 }
 
 void backward_maxpool_layer_cl(maxpool_layer layer, network net)
@@ -183,6 +183,6 @@ void backward_maxpool_layer_cl(maxpool_layer layer, network net)
     err|=clSetKernelArg(*clKernel, 8, sizeof(cl_mem), &net.delta_cl);
     err|=clSetKernelArg(*clKernel, 9, sizeof(cl_mem), &layer.indexes_cl);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
-    cl_error(err);
+    cl_error(err,"backward_maxpool_layer_cl");
 }
 #endif

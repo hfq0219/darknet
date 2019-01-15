@@ -184,7 +184,7 @@ void gemm_xx_cl(int M, int N, int K, float ALPHA,
     err|=clSetKernelArg(*clKernel, 8, sizeof(cl_mem), &C);
     err|=clSetKernelArg(*clKernel, 9, sizeof(cl_int), &ldc);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
-    cl_error(err);
+    cl_error(err,"gemm_xx_cl");
 }
 void gemm_cl(int TA, int TB, int M, int N, int K, float ALPHA, 
         cl_mem A, int lda, 

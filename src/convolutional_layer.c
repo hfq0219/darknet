@@ -702,7 +702,7 @@ void binarize_cl(cl_mem x, int n, cl_mem binary)
     err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &n);
     err|=clSetKernelArg(*clKernel, 2, sizeof(cl_mem), &binary);
     err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"binarize_cl");
 }
 
 void binarize_input_cl(cl_mem input, int n, int size, cl_mem binary)
@@ -716,7 +716,7 @@ void binarize_input_cl(cl_mem input, int n, int size, cl_mem binary)
     err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &size);
     err|=clSetKernelArg(*clKernel, 3, sizeof(cl_mem), &binary);
     err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"binarize_input_cl");
 }
 
 void binarize_weights_cl(cl_mem weights, int n, int size, cl_mem binary)
@@ -730,7 +730,7 @@ void binarize_weights_cl(cl_mem weights, int n, int size, cl_mem binary)
     err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &size);
     err|=clSetKernelArg(*clKernel, 3, sizeof(cl_mem), &binary);
     err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"binarize_weights_cl");
 }
 
 void forward_convolutional_layer_cl(convolutional_layer l, network net)
@@ -804,7 +804,7 @@ void smooth_layer(layer l, int size, float rate)
     err|=clSetKernelArg(*clKernel, 6, sizeof(cl_float), &rate);
     err|=clSetKernelArg(*clKernel, 7, sizeof(cl_mem), &l.delta_cl);
     err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"smooth_layer");
 }
 
 void backward_convolutional_layer_cl(convolutional_layer l, network net)

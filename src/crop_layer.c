@@ -142,7 +142,7 @@ void forward_crop_layer_cl(crop_layer layer, network net)
     err|=clSetKernelArg(*clKernel, 9, sizeof(cl_float), &scale);
     err|=clSetKernelArg(*clKernel, 10, sizeof(cl_float), &layer.shift);
     err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"forward_crop_layer_cl");
 
     size = layer.batch*layer.c*layer.out_w*layer.out_h;
 
@@ -161,6 +161,6 @@ void forward_crop_layer_cl(crop_layer layer, network net)
     err|=clSetKernelArg(*clKernel, 10, sizeof(cl_float), &radians);
     err|=clSetKernelArg(*clKernel, 11, sizeof(cl_mem), &layer.output_cl);
     err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"forward_crop_layer_cl");
 }
 #endif

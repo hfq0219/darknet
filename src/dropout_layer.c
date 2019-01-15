@@ -88,7 +88,7 @@ void forward_dropout_layer_cl(dropout_layer layer, network net)
     err|=clSetKernelArg(*clKernel, 3, sizeof(cl_float), &layer.probability);
     err|=clSetKernelArg(*clKernel, 4, sizeof(cl_float), &layer.scale);
     err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"forward_dropout_layer_cl");
 }
 
 void backward_dropout_layer_cl(dropout_layer layer, network net)
@@ -106,6 +106,6 @@ void backward_dropout_layer_cl(dropout_layer layer, network net)
     err|=clSetKernelArg(*clKernel, 3, sizeof(cl_float), &layer.probability);
     err|=clSetKernelArg(*clKernel, 4, sizeof(cl_float), &layer.scale);
     err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"backward_dropout_layer_cl");
 }
 #endif

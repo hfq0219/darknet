@@ -1,3 +1,5 @@
+__constant int BLOCK=1024;
+__constant int threads = 1024;
 //----------------------activation_kernels.cu-------------------------------//
 typedef enum{
     LOGISTIC, RELU, RELIE, LINEAR, RAMP, TANH, PLSE, LEAKY, ELU, LOGGY, STAIR, HARDTAN, LHTAN, SELU
@@ -236,8 +238,7 @@ __kernel void scale_bias_opencl(__global float *output,__global float *biases, i
 }
 __kernel void backward_scale_opencl(__global float *x_norm,__global float *delta, int batch, int n, int size,__global float *scale_updates)
 {
-    __constant int BLOCK=1024;
-    __local float part[BLOCK];
+    __local float part[1024];
     int i,b;
     int filter = get_group_id(0);
     int p = get_local_id(0);
@@ -286,8 +287,7 @@ __kernel void backward_bias_conn_opencl(__global float *bias_updates,__global fl
 }
 __kernel void backward_bias_opencl(__global float *bias_updates,__global float *delta, int batch, int n, int size)
 {
-    __constant int BLOCK=1024;
-    __local float part[BLOCK];
+    __local float part[1024];
     int i,b;
     int filter = get_group_id(0);
     int p = get_local_id(0);
@@ -317,17 +317,17 @@ __kernel void adam_opencl(int N,__global float *x,__global float *m,__global flo
     
     x[index] = x[index] + rate * mhat / (sqrt(vhat) + eps);
 }
-__kernel void normalize_opencl(__global float *x,__global float *mean,__global float *variance,
+__kernel void normalize_opencl(int N,__global float *x,__global float *mean,__global float *variance,
         int batch, int filters, int spatial)
 {
     int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
     int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
 
     int index = x_+y_*m_+z_*m_*n_;
-    if(index<batch*filters*spatial){
-        int f=(index/spatial)%filters;
-        x[index] = (x[index] - mean[f])/(sqrt(variance[f]) + 0.000001f);
-    }
+    if(index>=N) return;
+    
+    int f=(index/spatial)%filters;
+    x[index] = (x[index] - mean[f])/(sqrt(variance[f]) + 0.000001f);
 }
 __kernel void normalize_delta_opencl(int N,__global float *x,__global float *mean,__global float *variance,
         __global float *mean_delta,__global float *variance_delta, int batch, int filters, int spatial,__global float *delta)
@@ -374,8 +374,7 @@ __kernel void accumulate_opencl(__global float *x, int n, int groups,__global fl
 }
 __kernel void fast_mean_delta_opencl(__global float *delta,__global float *variance, int batch, int filters, int spatial,__global float *mean_delta)
 {
-    __constant int threads = 1024;
-    __local float loca[threads];
+    __local float loca[1024];
 
     int id = get_local_id(0);
     loca[id] = 0;
@@ -402,8 +401,7 @@ __kernel void fast_mean_delta_opencl(__global float *delta,__global float *varia
 }
 __kernel void  fast_variance_delta_opencl(__global float *x,__global float *delta,__global float *mean,__global float *variance, int batch, int filters, int spatial,__global float *variance_delta)
 {
-    __constant int threads = 1024;
-    __local float loca[threads];
+    __local float loca[1024];
 
     int id = get_local_id(0);
     loca[id] = 0;
@@ -645,8 +643,7 @@ __kernel void l2norm_opencl(int N,__global float *x,__global float *dx, int batc
 }
 __kernel void fast_mean_opencl(__global float *x, int batch, int filters, int spatial,__global float *mean)
 {
-    __constant int threads = 1024;
-    __local float loca[threads];
+    __local float loca[1024];
 
     int id = get_local_id(0);
     loca[id] = 0;
@@ -673,8 +670,7 @@ __kernel void fast_mean_opencl(__global float *x, int batch, int filters, int sp
 }
 __kernel void fast_variance_opencl(__global float *x,__global float *mean, int batch, int filters, int spatial,__global float *variance)
 {
-    __constant int threads = 1024;
-    __local float loca[threads];
+    __local float loca[1024];
 
     int id = get_local_id(0);
     loca[id] = 0;
@@ -689,9 +685,7 @@ __kernel void fast_variance_opencl(__global float *x,__global float *mean, int b
             loca[id] += (i+id < spatial) ? pow((x[index] - mean[filter]), 2) : 0;
         }
     }
-
     barrier(CLK_LOCAL_MEM_FENCE);
-
     if(id == 0){
         variance[filter] = 0;
         for(i = 0; i < threads; ++i){
@@ -947,6 +941,22 @@ __kernel void softmax_opencl(__global float *input, int n, int batch, int batch_
     int g = id % groups;
     softmax_device(input + b*batch_offset + g*group_offset, n, temp, stride, output + b*batch_offset + g*group_offset);
 }
+inline void AtomicAdd(volatile __global float *source, const float operand) {
+    union {
+        unsigned int intVal;
+        float floatVal;
+    } newVal;
+    union {
+        unsigned int intVal;
+        float floatVal;
+    } prevVal;
+    do {
+        prevVal.floatVal = *source;
+        newVal.floatVal = prevVal.floatVal + operand;
+    } while (atomic_cmpxchg((volatile __global unsigned int *)source, 
+                             prevVal.intVal, newVal.intVal) 
+                             != prevVal.intVal);
+}
 __kernel void upsample_opencl(int N,__global float *x, int w, int h, int c, int batch, int stride, 
         int forward, float scale,__global float *out)
 {
@@ -971,7 +981,7 @@ __kernel void upsample_opencl(int N,__global float *x, int w, int h, int c, int 
     int in_index = b*w*h*c + in_c*w*h + in_h*w + in_w;
 
     if(forward) out[out_index] += scale * x[in_index];
-    else atom_add(x+in_index, scale * out[out_index]);
+    else AtomicAdd(x+in_index, scale * out[out_index]);
 }
 /////////////--------------------col2im.c-----------------------------------//////////////////////
 __kernel void col2im_opencl(int n,__global float *data_col,int height,int width,
@@ -1077,6 +1087,109 @@ __kernel void smooth_opencl(__global float *x, int n, int w, int h, int c, int s
             int valid = (cur_h >= 0 && cur_h < h &&
                     cur_w >= 0 && cur_w < w);
             delta[out_index] += valid ? rate*(x[index] - x[out_index]) : 0;
+        }
+    }
+}
+
+////////////////////////---------------------gemm.c-------------------------//////////////////////
+__kernel void gemm_nn_opencl(int M,int N,int K,float ALPHA,__global float *weight,
+        int lda,__global float *input,int ldb,__global float *output,int ldc)
+{
+    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
+    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+
+    int index = x_+y_*m_+z_*m_*n_;
+
+    if(index<M*ldc){
+        int row = index / ldc;
+        int col = index % ldc;
+        for(int i = 0; i < K; i++){
+            output[index] += ALPHA * weight[row*lda+i] * input[i*ldb+col];
+        }
+    }
+}
+__kernel void gemm_nt_opencl(int M,int N,int K,float ALPHA,__global float *weight,
+        int lda,__global float *input,int ldb,__global float *output,int ldc)
+{
+    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
+    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+
+    int index = x_+y_*m_+z_*m_*n_;
+
+    if(index<M*ldc){
+        int row = index / ldc;
+        int col = index % ldc;
+        float sum=0;
+        for(int i = 0; i < K; i++){
+            sum += ALPHA*weight[row*lda+i]*input[col*ldb+i];
+        }
+        output[index] += sum;
+    }
+}
+__kernel void gemm_tn_opencl(int M,int N,int K,float ALPHA,__global float *weight,
+        int lda,__global float *input,int ldb,__global float *output,int ldc)
+{
+    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
+    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+
+    int index = x_+y_*m_+z_*m_*n_;
+    if(index<M*ldc){
+        int row = index / ldc;
+        int col = index % ldc;
+        for(int i = 0; i < K; i++){
+            float A_PART = ALPHA*weight[i*lda+row];
+            output[row*ldc+col] += A_PART*input[i*ldb+col];
+        }
+    }
+}
+__kernel void gemm_tt_opencl(int M, int N, int K, float ALPHA, 
+        __global float *A, int lda, 
+        __global float *B, int ldb,
+        __global float *C, int ldc)
+{
+    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
+    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+
+    int index = x_+y_*m_+z_*m_*n_;
+    return;/*
+    for(i = 0; i < M; ++i){
+        for(j = 0; j < N; ++j){
+            register float sum = 0;
+            for(k = 0; k < K; ++k){
+                sum += ALPHA*A[i+k*lda]*B[k+j*ldb];
+            }
+            C[i*ldc+j] += sum;
+        }
+    }*/
+}
+////////////////////-------------------im2col_kernels.cu--------------------------------////////////////////
+__kernel void im2col_opencl(int n,__global float *data_im,int height,int width,
+        int ksize,int pad,int stride,int height_col,int width_col,__global float *data_col)
+{
+    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
+    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+
+    int index = x_+y_*m_+z_*m_*n_;
+    for(; index < n; index += m_*n_*k_){
+        int w_out = index % width_col;
+        int h_index = index / width_col;
+        int h_out = h_index % height_col;
+        int channel_in = h_index / height_col;
+        int channel_out = channel_in * ksize * ksize;
+        int h_in = h_out * stride - pad;
+        int w_in = w_out * stride - pad;
+        __global float *data_col_ptr = data_col;
+        data_col_ptr += (channel_out * height_col + h_out) * width_col + w_out;
+        __global float *data_im_ptr = data_im;
+        data_im_ptr += (channel_in * height + h_in) * width + w_in;
+        for (int i = 0; i < ksize; ++i) {
+            for (int j = 0; j < ksize; ++j) {
+                int h = h_in + i;
+                int w = w_in + j;
+                *data_col_ptr = (h >= 0 && w >= 0 && h < height && w < width) ?
+                    data_im_ptr[i * width + j] : 0;
+                data_col_ptr += height_col * width_col;
+            }
         }
     }
 }
@@ -1273,108 +1386,6 @@ __kernel void yoloswag420blazeit360noscope(__global float *input, int size,__glo
 
     int id = x_+y_*m_+z_*m_*n_;
     if(id < size) input[id] = (rand[id] < prob) ? 0 : input[id]*scale;
-}
-////////////////////////---------------------gemm.c-------------------------//////////////////////
-__kernel void gemm_nn_opencl(int M,int N,int K,float ALPHA,__global float *weight,
-        int lda,__global float *input,int ldb,__global float *output,int ldc)
-{
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
-
-    int index = x_+y_*m_+z_*m_*n_;
-
-    if(index<M*ldc){
-        int row = index / ldc;
-        int col = index % ldc;
-        for(int i = 0; i < K; i++){
-            output[index] += ALPHA * weight[row*lda+i] * input[i*ldb+col];
-        }
-    }
-}
-__kernel void gemm_nt_opencl(int M,int N,int K,float ALPHA,__global float *weight,
-        int lda,__global float *input,int ldb,__global float *output,int ldc)
-{
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
-
-    int index = x_+y_*m_+z_*m_*n_;
-
-    if(index<M*ldc){
-        int row = index / ldc;
-        int col = index % ldc;
-        float sum=0;
-        for(int i = 0; i < K; i++){
-            sum += ALPHA*weight[row*lda+i]*input[col*ldb+i];
-        }
-        output[index] += sum;
-    }
-}
-__kernel void gemm_tn_opencl(int M,int N,int K,float ALPHA,__global float *weight,
-        int lda,__global float *input,int ldb,__global float *output,int ldc)
-{
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
-
-    int index = x_+y_*m_+z_*m_*n_;
-    if(index<M*ldc){
-        int row = index / ldc;
-        int col = index % ldc;
-        for(int i = 0; i < K; i++){
-            float A_PART = ALPHA*weight[i*lda+row];
-            output[row*ldc+col] += A_PART*input[i*ldb+col];
-        }
-    }
-}
-__kernel void gemm_tt_opencl(int M, int N, int K, float ALPHA, 
-        __global float *A, int lda, 
-        __global float *B, int ldb,
-        __global float *C, int ldc)
-{
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
-
-    int index = x_+y_*m_+z_*m_*n_;
-    return;/*
-    for(i = 0; i < M; ++i){
-        for(j = 0; j < N; ++j){
-            register float sum = 0;
-            for(k = 0; k < K; ++k){
-                sum += ALPHA*A[i+k*lda]*B[k+j*ldb];
-            }
-            C[i*ldc+j] += sum;
-        }
-    }*/
-}
-////////////////////-------------------im2col_kernels.cu--------------------------------////////////////////
-__kernel void im2col_opencl(int n,__global float *data_im,int height,int width,
-        int ksize,int pad,int stride,int height_col,int width_col,__global float *data_col)
-{
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
-
-    int index = x_+y_*m_+z_*m_*n_;
-    for(; index < n; index += m_*n_*k_){
-        int w_out = index % width_col;
-        int h_index = index / width_col;
-        int h_out = h_index % height_col;
-        int channel_in = h_index / height_col;
-        int channel_out = channel_in * ksize * ksize;
-        int h_in = h_out * stride - pad;
-        int w_in = w_out * stride - pad;
-        __global float *data_col_ptr = data_col;
-        data_col_ptr += (channel_out * height_col + h_out) * width_col + w_out;
-        __global float *data_im_ptr = data_im;
-        data_im_ptr += (channel_in * height + h_in) * width + w_in;
-        for (int i = 0; i < ksize; ++i) {
-            for (int j = 0; j < ksize; ++j) {
-                int h = h_in + i;
-                int w = w_in + j;
-                *data_col_ptr = (h >= 0 && w >= 0 && h < height && w < width) ?
-                    data_im_ptr[i * width + j] : 0;
-                data_col_ptr += height_col * width_col;
-            }
-        }
-    }
 }
 //--------------------------------------------------------------------------------------------------//
 __kernel void forward_maxpool_layer_opencl(int n, int in_h, int in_w, int in_c, int stride, int size, int pad,__global float *input,__global float *output,__global int *indexes)

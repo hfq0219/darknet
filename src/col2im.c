@@ -59,6 +59,6 @@ void col2im_cl(cl_mem data_col,int channels, int height, int width,int ksize, in
     err|=clSetKernelArg(*clKernel, 8, sizeof(cl_int), &width_col);
     err|=clSetKernelArg(*clKernel, 9, sizeof(cl_mem), &data_im);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
-    cl_error(err);
+    cl_error(err,"col2im_cl");
 }
 #endif

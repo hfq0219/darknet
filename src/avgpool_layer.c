@@ -89,7 +89,7 @@ void forward_avgpool_layer_cl(avgpool_layer layer, network net)
     err|=clSetKernelArg(*clKernel, 4, sizeof(cl_mem), &net.input_cl);
     err|=clSetKernelArg(*clKernel, 5, sizeof(cl_mem), &layer.output_cl);
     err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"forward_avgpool_layer_cl");
 }
 void backward_avgpool_layer_cl(avgpool_layer layer, network net)
 {
@@ -105,6 +105,6 @@ void backward_avgpool_layer_cl(avgpool_layer layer, network net)
     err|=clSetKernelArg(*clKernel, 4, sizeof(cl_mem), &net.delta_cl);
     err|=clSetKernelArg(*clKernel, 5, sizeof(cl_mem), &layer.delta_cl);
     err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"backward_avgpool_layer_cl");
 }
 #endif

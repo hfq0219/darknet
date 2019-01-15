@@ -61,6 +61,6 @@ void im2col_cl(cl_mem im,
     err|=clSetKernelArg(*clKernel, 8, sizeof(cl_int), &width_col);
     err|=clSetKernelArg(*clKernel, 9, sizeof(cl_mem), &data_col);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
-    cl_error(err);
+    cl_error(err,"im2col_cl");
 }
 #endif

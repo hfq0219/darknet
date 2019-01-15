@@ -351,20 +351,21 @@ void upsample_cpu(float *in, int w, int h, int c, int batch, int stride, int for
 void scale_bias_cl(cl_mem output, cl_mem biases, int batch, int n, int size)
 {
     cl_int err;
-    int BLOCK=512;
-    size_t globalSize[3]={((size-1)/BLOCK + 1)*BLOCK,n,batch};
-    if(((size-1)/BLOCK + 1)*BLOCK>1024){
-        fprintf(stderr,"wrong work size.\n");
-        exit(-1);
-    }
-    size_t localSize[3]={BLOCK,1,1};
+    //int BLOCK=512;
+    //size_t globalSize[3]={((size-1)/BLOCK + 1)*BLOCK,n,batch};
+    //if(((size-1)/BLOCK + 1)*BLOCK>1024){
+    //    fprintf(stderr,"wrong work size.\n");
+    //    exit(-1);
+    //}
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(size*n*batch,globalSize,localSize);
     *clKernel=clCreateKernel(*clProgram,"scale_bias_opencl",&err);
     err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&output);
     err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&biases);
     err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&n);
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&size);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"scale_bias_cl");
 }
 
 void backward_scale_cl(cl_mem x_norm, cl_mem delta, int batch, int n, int size, cl_mem scale_updates)
@@ -380,7 +381,7 @@ void backward_scale_cl(cl_mem x_norm, cl_mem delta, int batch, int n, int size, 
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&size);
     err|=clSetKernelArg(*clKernel,5,sizeof(cl_mem),&scale_updates);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"backward_scale_cl");
 }
 
 void add_bias_cl(cl_mem output, cl_mem biases, int batch, int n, int size)
@@ -396,7 +397,7 @@ void add_bias_cl(cl_mem output, cl_mem biases, int batch, int n, int size)
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&n);
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&size);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"add_bias_cl");
 }
 
 void backward_bias_cl(cl_mem bias_updates, cl_mem delta, int batch, int n, int size)
@@ -412,7 +413,7 @@ void backward_bias_cl(cl_mem bias_updates, cl_mem delta, int batch, int n, int s
         err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&batch);
         err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&n);
         err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-        cl_error(err);
+        cl_error(err,"backward_bias_cl");
     }else{
         cl_int err;
         size_t globalSize[3],localSize[3];
@@ -424,7 +425,7 @@ void backward_bias_cl(cl_mem bias_updates, cl_mem delta, int batch, int n, int s
         err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&n);
         err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&size);
         err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-        cl_error(err);
+        cl_error(err,"backward_bias_cl");
     }
 }
 
@@ -444,7 +445,7 @@ void adam_cl(int n, cl_mem x, cl_mem m, cl_mem v, float B1, float B2, float rate
     err|=clSetKernelArg(*clKernel,7,sizeof(cl_float),&eps);
     err|=clSetKernelArg(*clKernel,8,sizeof(cl_int),&t);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"adam_cl");
 }
 
 void adam_update_cl(cl_mem w, cl_mem d, cl_mem m, cl_mem v, float B1, float B2, float eps, float decay, float rate, int n, int batch, int t)
@@ -479,7 +480,7 @@ void normalize_delta_cl(cl_mem x, cl_mem mean, cl_mem variance, cl_mem mean_delt
     err|=clSetKernelArg(*clKernel,8,sizeof(cl_int),&spatial);
     err|=clSetKernelArg(*clKernel,9,sizeof(cl_mem),&delta);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"normalize_delta_cl");
 }
 
 void mean_delta_cl(cl_mem delta, cl_mem variance, int batch, int filters, int spatial, cl_mem mean_delta)
@@ -495,7 +496,7 @@ void mean_delta_cl(cl_mem delta, cl_mem variance, int batch, int filters, int sp
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&spatial);
     err|=clSetKernelArg(*clKernel,5,sizeof(cl_mem),&mean_delta);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"mean_delta_cl");
 }
 
 void fast_mean_delta_cl(cl_mem delta,cl_mem variance, int batch, int filters, int spatial,cl_mem mean_delta)
@@ -511,7 +512,7 @@ void fast_mean_delta_cl(cl_mem delta,cl_mem variance, int batch, int filters, in
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&spatial);
     err|=clSetKernelArg(*clKernel,5,sizeof(cl_mem),&mean_delta);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"fast_mean_delta_cl");
 }
 
 void fast_variance_delta_cl(cl_mem x,cl_mem delta,cl_mem mean,cl_mem variance, int batch, int filters, int spatial,cl_mem variance_delta)
@@ -529,7 +530,7 @@ void fast_variance_delta_cl(cl_mem x,cl_mem delta,cl_mem mean,cl_mem variance, i
     err|=clSetKernelArg(*clKernel,6,sizeof(cl_int),&spatial);
     err|=clSetKernelArg(*clKernel,7,sizeof(cl_mem),&variance_delta);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"fast_variance_delta_cl");
 }
 
 void normalize_cl(cl_mem x, cl_mem mean, cl_mem variance, int batch, int filters, int spatial)
@@ -547,7 +548,7 @@ void normalize_cl(cl_mem x, cl_mem mean, cl_mem variance, int batch, int filters
     err|=clSetKernelArg(*clKernel,5,sizeof(cl_int),&filters);
     err|=clSetKernelArg(*clKernel,6,sizeof(cl_int),&spatial);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"normalize_cl");
 }
 
 void l2normalize_cl(cl_mem x, cl_mem dx, int batch, int filters, int spatial)
@@ -560,11 +561,11 @@ void l2normalize_cl(cl_mem x, cl_mem dx, int batch, int filters, int spatial)
     err|=clSetKernelArg(*clKernel,0,sizeof(cl_int),&N);
     err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&x);
     err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&dx);
-    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&batch);
-    err|=clSetKernelArg(*clKernel,5,sizeof(cl_int),&filters);
-    err|=clSetKernelArg(*clKernel,6,sizeof(cl_int),&spatial);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&batch);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&filters);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_int),&spatial);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"l2normalize_cl");
 }
 
 void fast_mean_cl(cl_mem x, int batch, int filters, int spatial,cl_mem mean)
@@ -579,7 +580,7 @@ void fast_mean_cl(cl_mem x, int batch, int filters, int spatial,cl_mem mean)
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&spatial);
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&mean);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"fast_mean_cl");
 }
 
 void fast_variance_cl(cl_mem x,cl_mem mean, int batch, int filters, int spatial,cl_mem variance)
@@ -595,7 +596,7 @@ void fast_variance_cl(cl_mem x,cl_mem mean, int batch, int filters, int spatial,
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&spatial);
     err|=clSetKernelArg(*clKernel,5,sizeof(cl_mem),&variance);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"fast_variance_cl");
 }
 
 void mean_cl(cl_mem x, int batch, int filters, int spatial, cl_mem mean)
@@ -610,7 +611,7 @@ void mean_cl(cl_mem x, int batch, int filters, int spatial, cl_mem mean)
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&spatial);
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&mean);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"mean_cl");
 }
 
 void variance_cl(cl_mem x, cl_mem mean, int batch, int filters, int spatial, cl_mem variance)
@@ -626,7 +627,7 @@ void variance_cl(cl_mem x, cl_mem mean, int batch, int filters, int spatial, cl_
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&spatial);
     err|=clSetKernelArg(*clKernel,5,sizeof(cl_mem),&variance);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"variance_cl");
 }
 
 void axpy_cl(int N, float ALPHA, cl_mem  X, int INCX, cl_mem  Y, int INCY)
@@ -647,7 +648,7 @@ void pow_cl(int N, float ALPHA, cl_mem  X, int INCX, cl_mem  Y, int INCY)
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&Y);
     err|=clSetKernelArg(*clKernel,5,sizeof(cl_int),&INCY);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"pow_cl");
 }
 
 void axpy_cl_offset(int N, float ALPHA, cl_mem  X, int OFFX, int INCX, cl_mem  Y, int OFFY, int INCY)
@@ -665,7 +666,7 @@ void axpy_cl_offset(int N, float ALPHA, cl_mem  X, int OFFX, int INCX, cl_mem  Y
     err|=clSetKernelArg(*clKernel,6,sizeof(cl_int),&OFFY);
     err|=clSetKernelArg(*clKernel,7,sizeof(cl_int),&INCY);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"axpy_cl_offset");
 }
 
 void copy_cl(int N, cl_mem  X, int INCX, cl_mem  Y, int INCY)
@@ -685,7 +686,7 @@ void mul_cl(int N, cl_mem  X, int INCX, cl_mem  Y, int INCY)
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&Y);
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&INCY);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"mul_cl");
 }
 
 void copy_cl_offset(int N, cl_mem  X, int OFFX, int INCX, cl_mem  Y, int OFFY, int INCY)
@@ -702,7 +703,7 @@ void copy_cl_offset(int N, cl_mem  X, int OFFX, int INCX, cl_mem  Y, int OFFY, i
     err|=clSetKernelArg(*clKernel,5,sizeof(cl_int),&OFFY);
     err|=clSetKernelArg(*clKernel,6,sizeof(cl_int),&INCY);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"copy_cl_offset");
 }
 
 void flatten_cl(cl_mem x, int spatial, int layers, int batch, int forward, cl_mem out)
@@ -720,7 +721,7 @@ void flatten_cl(cl_mem x, int spatial, int layers, int batch, int forward, cl_me
     err|=clSetKernelArg(*clKernel,5,sizeof(cl_int),&forward);
     err|=clSetKernelArg(*clKernel,6,sizeof(cl_mem),&out);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"flatten_cl");
 }
 
 void reorg_cl(cl_mem x, int w, int h, int c, int batch, int stride, int forward, cl_mem out)
@@ -740,7 +741,7 @@ void reorg_cl(cl_mem x, int w, int h, int c, int batch, int stride, int forward,
     err|=clSetKernelArg(*clKernel,7,sizeof(cl_int),&forward);
     err|=clSetKernelArg(*clKernel,8,sizeof(cl_mem),&out);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"reorg_cl");
 }
 
 void mask_cl(int N, cl_mem  X, float mask_num, cl_mem  mask, float val)
@@ -755,7 +756,7 @@ void mask_cl(int N, cl_mem  X, float mask_num, cl_mem  mask, float val)
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&mask);
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_float),&val);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"mask_cl");
 }
 
 void scale_mask_cl(int N, cl_mem  X, float mask_num, cl_mem  mask, float scale)
@@ -770,7 +771,7 @@ void scale_mask_cl(int N, cl_mem  X, float mask_num, cl_mem  mask, float scale)
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&mask);
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_float),&scale);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"scale_mask_cl");
 }
 
 void const_cl(int N, float ALPHA, cl_mem  X, int INCX)
@@ -784,7 +785,7 @@ void const_cl(int N, float ALPHA, cl_mem  X, int INCX)
     err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&X);
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&INCX);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"const_cl");
 }
 
 void constrain_cl(int N, float ALPHA, cl_mem  X, int INCX)
@@ -798,7 +799,7 @@ void constrain_cl(int N, float ALPHA, cl_mem  X, int INCX)
     err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&X);
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&INCX);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"constrain_cl");
 }
 
 void add_cl(int N, float ALPHA, cl_mem  X, int INCX)
@@ -812,7 +813,7 @@ void add_cl(int N, float ALPHA, cl_mem  X, int INCX)
     err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&X);
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&INCX);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"add_cl");
 }
 
 void scal_cl(int N, float ALPHA, cl_mem  X, int INCX)
@@ -826,7 +827,7 @@ void scal_cl(int N, float ALPHA, cl_mem  X, int INCX)
     err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&X);
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&INCX);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"scal_cl");
 }
 
 void supp_cl(int N, float ALPHA, cl_mem  X, int INCX)
@@ -840,7 +841,7 @@ void supp_cl(int N, float ALPHA, cl_mem  X, int INCX)
     err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&X);
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&INCX);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"supp_cl");
 }
 
 void fill_cl(int N, float ALPHA, cl_mem  X, int INCX)
@@ -854,7 +855,7 @@ void fill_cl(int N, float ALPHA, cl_mem  X, int INCX)
     err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&X);
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&INCX);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"fill_cl");
 }
 
 void shortcut_cl(int batch, int w1, int h1, int c1, cl_mem add, int w2, int h2, int c2, float s1, float s2, cl_mem out)
@@ -893,7 +894,7 @@ void shortcut_cl(int batch, int w1, int h1, int c1, cl_mem add, int w2, int h2, 
     err|=clSetKernelArg(*clKernel,15,sizeof(cl_float),&s2);
     err|=clSetKernelArg(*clKernel,16,sizeof(cl_mem),&out);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"shortcut_cl");
 }
 
 void smooth_l1_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error)
@@ -908,7 +909,7 @@ void smooth_l1_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error)
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&delta);
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&error);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"smooth_l1_cl");
 }
 
 void softmax_x_ent_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error)
@@ -923,7 +924,7 @@ void softmax_x_ent_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem err
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&delta);
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&error);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"softmax_x_ent_cl");
 }
 
 void logistic_x_ent_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error)
@@ -938,7 +939,7 @@ void logistic_x_ent_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem er
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&delta);
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&error);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"logistic_x_ent_cl");
 }
 
 void l2_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error)
@@ -953,7 +954,7 @@ void l2_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error)
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&delta);
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&error);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"l2_cl");
 }
 
 void l1_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error)
@@ -968,7 +969,7 @@ void l1_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error)
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&delta);
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&error);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"l1_cl");
 }
 
 void wgan_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error)
@@ -983,7 +984,7 @@ void wgan_cl(int n, cl_mem pred, cl_mem truth, cl_mem delta, cl_mem error)
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&delta);
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&error);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"wgan_cl");
 }
 
 void deinter_cl(int NX, cl_mem X, int NY, cl_mem Y, int B, cl_mem OUT)
@@ -999,7 +1000,7 @@ void deinter_cl(int NX, cl_mem X, int NY, cl_mem Y, int B, cl_mem OUT)
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&B);
     err|=clSetKernelArg(*clKernel,5,sizeof(cl_mem),&OUT);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"deinter_cl");
 }
 
 void inter_cl(int NX, cl_mem X, int NY, cl_mem Y, int B, cl_mem OUT)
@@ -1015,7 +1016,7 @@ void inter_cl(int NX, cl_mem X, int NY, cl_mem Y, int B, cl_mem OUT)
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&B);
     err|=clSetKernelArg(*clKernel,5,sizeof(cl_mem),&OUT);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"inter_cl");
 }
 
 void weighted_sum_cl(cl_mem a, cl_mem b, cl_mem s, int num, cl_mem c)
@@ -1030,7 +1031,7 @@ void weighted_sum_cl(cl_mem a, cl_mem b, cl_mem s, int num, cl_mem c)
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&s);
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&c);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"weighted_sum_cl");
 }
 
 void weighted_delta_cl(cl_mem a, cl_mem b, cl_mem s, cl_mem da, cl_mem db, cl_mem ds, int num, cl_mem dc)
@@ -1048,7 +1049,7 @@ void weighted_delta_cl(cl_mem a, cl_mem b, cl_mem s, cl_mem da, cl_mem db, cl_me
     err|=clSetKernelArg(*clKernel,6,sizeof(cl_mem),&ds);
     err|=clSetKernelArg(*clKernel,7,sizeof(cl_mem),&dc);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"weighted_delta_cl");
 }
 
 void mult_add_into_cl(int num, cl_mem a, cl_mem b, cl_mem c)
@@ -1062,7 +1063,7 @@ void mult_add_into_cl(int num, cl_mem a, cl_mem b, cl_mem c)
     err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&b);
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&c);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"mult_add_into_cl");
 }
 
 void softmax_tree(cl_mem input, int spatial, int batch, int stride, float temp,cl_mem output, tree hier)
@@ -1092,7 +1093,7 @@ void softmax_tree(cl_mem input, int spatial, int batch, int stride, float temp,c
     err|=clSetKernelArg(*clKernel,7,sizeof(cl_mem),&tree_groups_size);
     err|=clSetKernelArg(*clKernel,8,sizeof(cl_mem),&tree_groups_offset);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"softmax_tree");
     cl_free(tree_groups_size);
     cl_free(tree_groups_offset);
 }
@@ -1113,7 +1114,7 @@ void softmax_cl(cl_mem input, int n, int batch, int batch_offset, int groups, in
     err|=clSetKernelArg(*clKernel,7,sizeof(cl_float),&temp);
     err|=clSetKernelArg(*clKernel,8,sizeof(cl_mem),&output);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"softmax_cl");
 }
 
 void upsample_cl(cl_mem in, int w, int h, int c, int batch, int stride, int forward, float scale, cl_mem out)
@@ -1135,7 +1136,7 @@ void upsample_cl(cl_mem in, int w, int h, int c, int batch, int stride, int forw
     err|=clSetKernelArg(*clKernel,9,sizeof(cl_float),&scale);
     err|=clSetKernelArg(*clKernel,10,sizeof(cl_mem),&out);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
+    cl_error(err,"upsample_cl");
 }
 #endif
 
