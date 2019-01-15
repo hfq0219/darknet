@@ -348,7 +348,6 @@ void upsample_cpu(float *in, int w, int h, int c, int batch, int stride, int for
     }
 }
 #ifdef OPENCL
-
 void scale_bias_cl(cl_mem output, cl_mem biases, int batch, int n, int size)
 {
     cl_int err;
@@ -415,7 +414,17 @@ void backward_bias_cl(cl_mem bias_updates, cl_mem delta, int batch, int n, int s
         err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
         cl_error(err);
     }else{
-        //backward_bias_kernel<<<n, BLOCK>>>(bias_updates, delta, batch, n, size);
+        cl_int err;
+        size_t globalSize[3],localSize[3];
+        setWorkItemSize(n,globalSize,localSize);
+        *clKernel=clCreateKernel(*clProgram,"backward_bias_opencl",&err);
+        err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&bias_updates);
+        err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&delta);
+        err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&batch);
+        err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&n);
+        err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&size);
+        err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+        cl_error(err);
     }
 }
 
@@ -478,13 +487,47 @@ void mean_delta_cl(cl_mem delta, cl_mem variance, int batch, int filters, int sp
     cl_int err;
     size_t globalSize[3],localSize[3];
     setWorkItemSize(filters,globalSize,localSize);
-    *clKernel=clCreateKernel(*clProgram,"normalize_delta_opencl",&err);
+    *clKernel=clCreateKernel(*clProgram,"mean_delta_opencl",&err);
     err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&delta);
     err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&variance);
     err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&batch);
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&filters);
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&spatial);
     err|=clSetKernelArg(*clKernel,5,sizeof(cl_mem),&mean_delta);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void fast_mean_delta_cl(cl_mem delta,cl_mem variance, int batch, int filters, int spatial,cl_mem mean_delta)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(filters,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"fast_mean_delta_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&delta);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&variance);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&batch);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&filters);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&spatial);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_mem),&mean_delta);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void fast_variance_delta_cl(cl_mem x,cl_mem delta,cl_mem mean,cl_mem variance, int batch, int filters, int spatial,cl_mem variance_delta)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(filters,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"fast_variance_delta_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&x);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&delta);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_mem),&mean);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&variance);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&batch);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_int),&filters);
+    err|=clSetKernelArg(*clKernel,6,sizeof(cl_int),&spatial);
+    err|=clSetKernelArg(*clKernel,7,sizeof(cl_mem),&variance_delta);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
     cl_error(err);
 }
@@ -520,6 +563,37 @@ void l2normalize_cl(cl_mem x, cl_mem dx, int batch, int filters, int spatial)
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&batch);
     err|=clSetKernelArg(*clKernel,5,sizeof(cl_int),&filters);
     err|=clSetKernelArg(*clKernel,6,sizeof(cl_int),&spatial);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void fast_mean_cl(cl_mem x, int batch, int filters, int spatial,cl_mem mean)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(filters,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"fast_mean_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&x);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_int),&batch);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&filters);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&spatial);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_mem),&mean);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+
+void fast_variance_cl(cl_mem x,cl_mem mean, int batch, int filters, int spatial,cl_mem variance)
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(filters,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"fast_variance_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&x);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&mean);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&batch);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&filters);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&spatial);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_mem),&variance);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
     cl_error(err);
 }
@@ -989,6 +1063,38 @@ void mult_add_into_cl(int num, cl_mem a, cl_mem b, cl_mem c)
     err|=clSetKernelArg(*clKernel,3,sizeof(cl_mem),&c);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
     cl_error(err);
+}
+
+void softmax_tree(cl_mem input, int spatial, int batch, int stride, float temp,cl_mem output, tree hier)
+{
+    cl_mem tree_groups_size = cl_make_int_array(hier.group_size, hier.groups);
+    cl_mem tree_groups_offset = cl_make_int_array(hier.group_offset, hier.groups);
+    /*
+       static int *tree_groups_size = 0;
+       static int *tree_groups_offset = 0;
+       if(!tree_groups_size){
+       tree_groups_size = cuda_make_int_array(hier.group_size, hier.groups);
+       tree_groups_offset = cuda_make_int_array(hier.group_offset, hier.groups);
+       }
+     */
+    int num = spatial*batch*hier.groups;
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(num,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram,"softmax_tree_opencl",&err);
+    err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&input);
+    err|=clSetKernelArg(*clKernel,1,sizeof(cl_int),&spatial);
+    err|=clSetKernelArg(*clKernel,2,sizeof(cl_int),&batch);
+    err|=clSetKernelArg(*clKernel,3,sizeof(cl_int),&stride);
+    err|=clSetKernelArg(*clKernel,4,sizeof(cl_float),&temp);
+    err|=clSetKernelArg(*clKernel,5,sizeof(cl_mem),&output);
+    err|=clSetKernelArg(*clKernel,6,sizeof(cl_int),&hier.groups);
+    err|=clSetKernelArg(*clKernel,7,sizeof(cl_mem),&tree_groups_size);
+    err|=clSetKernelArg(*clKernel,8,sizeof(cl_mem),&tree_groups_offset);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+    cl_free(tree_groups_size);
+    cl_free(tree_groups_offset);
 }
 
 void softmax_cl(cl_mem input, int n, int batch, int batch_offset, int groups, int group_offset, int stride, float temp, cl_mem output)

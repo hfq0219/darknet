@@ -33,6 +33,14 @@ softmax_layer make_softmax_layer(int batch, int inputs, int groups)
     l.loss_gpu = cuda_make_array(l.loss, inputs*batch); 
     l.delta_gpu = cuda_make_array(l.delta, inputs*batch); 
     #endif
+    #ifdef OPENCL
+    l.forward_cl = forward_softmax_layer_cl;
+    l.backward_cl = backward_softmax_layer_cl;
+
+    l.output_cl = cl_make_array(l.output, inputs*batch); 
+    l.loss_cl = cl_make_array(l.loss, inputs*batch); 
+    l.delta_cl = cl_make_array(l.delta, inputs*batch); 
+    #endif
     return l;
 }
 
@@ -102,6 +110,50 @@ void forward_softmax_layer_gpu(const softmax_layer l, network net)
 void backward_softmax_layer_gpu(const softmax_layer layer, network net)
 {
     axpy_gpu(layer.batch*layer.inputs, 1, layer.delta_gpu, 1, net.delta_gpu, 1);
+}
+
+#endif
+#ifdef OPENCL
+
+void pull_softmax_layer_output(const softmax_layer layer)
+{
+    cl_pull_array(layer.output_cl, layer.output, layer.inputs*layer.batch);
+}
+
+void forward_softmax_layer_cl(const softmax_layer l, network net)
+{
+    if(l.softmax_tree){
+        softmax_tree(net.input_cl, 1, l.batch, l.inputs, l.temperature, l.output_cl, *l.softmax_tree);
+        /*
+        int i;
+        int count = 0;
+        for (i = 0; i < l.softmax_tree->groups; ++i) {
+            int group_size = l.softmax_tree->group_size[i];
+            softmax_gpu(net.input_gpu + count, group_size, l.batch, l.inputs, 1, 0, 1, l.temperature, l.output_gpu + count);
+            count += group_size;
+        }
+        */
+    } else {
+        if(l.spatial){
+            softmax_cl(net.input_cl, l.c, l.batch*l.c, l.inputs/l.c, l.w*l.h, 1, l.w*l.h, 1, l.output_cl);
+        }else{
+            softmax_cl(net.input_cl, l.inputs/l.groups, l.batch, l.inputs, l.groups, l.inputs/l.groups, 1, l.temperature, l.output_cl);
+        }
+    }
+    if(net.truth && !l.noloss){
+        softmax_x_ent_cl(l.batch*l.inputs, l.output_cl, net.truth_cl, l.delta_cl, l.loss_cl);
+        if(l.softmax_tree){
+            mask_cl(l.batch*l.inputs, l.delta_cl, SECRET_NUM, net.truth_cl, 0);
+            mask_cl(l.batch*l.inputs, l.loss_cl, SECRET_NUM, net.truth_cl, 0);
+        }
+        cl_pull_array(l.loss_cl, l.loss, l.batch*l.inputs);
+        l.cost[0] = sum_array(l.loss, l.batch*l.inputs);
+    }
+}
+
+void backward_softmax_layer_cl(const softmax_layer layer, network net)
+{
+    axpy_cl(layer.batch*layer.inputs, 1, layer.delta_cl, 1, net.delta_cl, 1);
 }
 
 #endif

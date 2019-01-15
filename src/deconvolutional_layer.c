@@ -381,6 +381,7 @@ void forward_deconvolutional_layer_cl(layer l, network net)
         gemm_cl(1,0,m,n,k,1,a,m,b,n,0,c,n);
 
         col2im_cl(net.workspace_cl, l.out_c, l.out_h, l.out_w, l.size, l.stride, l.pad, l.output_cl);//+i*l.outputs);
+        cl_free(b);
     }
     if (l.batch_normalize) {
         forward_batchnorm_layer_cl(l, net);
@@ -418,7 +419,7 @@ void backward_deconvolutional_layer_cl(layer l, network net)
         im2col_cl(l.delta_cl/* + i*l.outputs*/, l.out_c, l.out_h, l.out_w, 
                 l.size, l.stride, l.pad, b);
         gemm_cl(0,1,m,n,k,1,a,k,b,k,1,c,n);
-
+        cl_free(a);
         if(net.delta_cl){
             int m = l.c;
             int n = l.h*l.w;
@@ -430,6 +431,7 @@ void backward_deconvolutional_layer_cl(layer l, network net)
             clEnqueueCopyBuffer(*clCommandQueue,net.delta_cl,c,sizeof(float)*i*m*n,0,sizeof(float)*m*n,0,NULL,NULL);
 
             gemm_cl(0,0,m,n,k,1,a,k,b,n,1,c,n);
+            cl_free(c);
         }
     }
 }

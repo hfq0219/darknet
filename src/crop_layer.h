@@ -15,6 +15,9 @@ void resize_crop_layer(layer *l, int w, int h);
 #ifdef GPU
 void forward_crop_layer_gpu(crop_layer l, network net);
 #endif
+#ifdef OPENCL
+void forward_crop_layer_cl(crop_layer l, network net);
+#endif
 
 #endif
 

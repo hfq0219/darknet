@@ -104,4 +104,35 @@ void gradient_array_cl(cl_mem x, int n, ACTIVATION a, cl_mem delta)
     err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
     cl_error(err);
 }
+void binary_gradient_array_cl(cl_mem x, cl_mem dx, int n, int size, BINARY_ACTIVATION a,cl_mem y) 
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    n/=2;
+    setWorkItemSize(n,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram, "binary_gradient_array_opencl", err);
+    err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &x);
+    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_mem), &dx);
+    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &n);
+    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_int), &size);
+    err|=clSetKernelArg(*clKernel, 4, sizeof(BINARY_ACTIVATION), &a);
+    err|=clSetKernelArg(*clKernel, 5, sizeof(cl_mem), &y);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
+void binary_activate_array_cl(cl_mem x, int n, int size, BINARY_ACTIVATION a,cl_mem y) 
+{
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    n/=2;
+    setWorkItemSize(n,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram, "binary_activate_array_opencl", err);
+    err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &x);
+    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &n);
+    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &size);
+    err|=clSetKernelArg(*clKernel, 3, sizeof(BINARY_ACTIVATION), &a);
+    err|=clSetKernelArg(*clKernel, 4, sizeof(cl_mem), &y);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
+}
 #endif

@@ -24,6 +24,12 @@ static void increment_layer(layer *l, int steps)
     l->x_gpu += num;
     l->x_norm_gpu += num;
 #endif
+#ifdef OPENCL
+    /*l->output_cl += num;
+    l->delta_cl += num;
+    l->x_cl += num;
+    l->x_norm_cl += num;*/
+#endif
 }
 
 layer make_gru_layer(int batch, int inputs, int outputs, int steps, int batch_normalize, int adam)
@@ -111,7 +117,21 @@ layer make_gru_layer(int batch, int inputs, int outputs, int steps, int batch_no
     cudnnSetTensor4dDescriptor(l.wr->dstTensorDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, batch, l.wr->out_c, l.wr->out_h, l.wr->out_w); 
 #endif
 #endif
+#ifdef OPENCL
+    l.forward_cl = forward_gru_layer_cl;
+    l.backward_cl = backward_gru_layer_cl;
+    l.update_cl = update_gru_layer_cl;
 
+    l.forgot_state_cl = cl_make_array(0, batch*outputs);
+    l.forgot_delta_cl = cl_make_array(0, batch*outputs);
+    l.prev_state_cl = cl_make_array(0, batch*outputs);
+    l.state_cl = cl_make_array(0, batch*outputs);
+    l.output_cl = cl_make_array(0, batch*outputs*steps);
+    l.delta_cl = cl_make_array(0, batch*outputs*steps);
+    l.r_cl = cl_make_array(0, batch*outputs);
+    l.z_cl = cl_make_array(0, batch*outputs);
+    l.h_cl = cl_make_array(0, batch*outputs);
+#endif
     return l;
 }
 
@@ -402,5 +422,204 @@ void backward_gru_layer_gpu(layer l, network net)
         increment_layer(&wh, -1);
     }
     copy_gpu(l.outputs*l.batch, end_state, 1, l.state_gpu, 1);
+}
+#endif
+#ifdef OPENCL
+
+void pull_gru_layer(layer l)
+{
+}
+
+void push_gru_layer(layer l)
+{
+}
+
+void update_gru_layer_cl(layer l, update_args a)
+{
+    update_connected_layer_cl(*(l.ur), a);
+    update_connected_layer_cl(*(l.uz), a);
+    update_connected_layer_cl(*(l.uh), a);
+    update_connected_layer_cl(*(l.wr), a);
+    update_connected_layer_cl(*(l.wz), a);
+    update_connected_layer_cl(*(l.wh), a);
+}
+
+void forward_gru_layer_cl(layer l, network net)
+{
+    network s = {0};
+    s.train = net.train;
+    int i;
+    layer uz = *(l.uz);
+    layer ur = *(l.ur);
+    layer uh = *(l.uh);
+
+    layer wz = *(l.wz);
+    layer wr = *(l.wr);
+    layer wh = *(l.wh);
+
+    fill_cl(l.outputs * l.batch * l.steps, 0, uz.delta_cl, 1);
+    fill_cl(l.outputs * l.batch * l.steps, 0, ur.delta_cl, 1);
+    fill_cl(l.outputs * l.batch * l.steps, 0, uh.delta_cl, 1);
+
+    fill_cl(l.outputs * l.batch * l.steps, 0, wz.delta_cl, 1);
+    fill_cl(l.outputs * l.batch * l.steps, 0, wr.delta_cl, 1);
+    fill_cl(l.outputs * l.batch * l.steps, 0, wh.delta_cl, 1);
+    if(net.train) {
+        fill_cl(l.outputs * l.batch * l.steps, 0, l.delta_cl, 1);
+        copy_cl(l.outputs*l.batch, l.state_cl, 1, l.prev_state_cl, 1);
+    }
+
+    for (i = 0; i < l.steps; ++i) {
+        s.input_cl = l.state_cl;
+        forward_connected_layer_cl(wz, s);
+        forward_connected_layer_cl(wr, s);
+
+        s.input_cl = net.input_cl;
+        forward_connected_layer_cl(uz, s);
+        forward_connected_layer_cl(ur, s);
+        forward_connected_layer_cl(uh, s);
+
+        copy_cl(l.outputs*l.batch, uz.output_cl, 1, l.z_cl, 1);
+        axpy_cl(l.outputs*l.batch, 1, wz.output_cl, 1, l.z_cl, 1);
+
+        copy_cl(l.outputs*l.batch, ur.output_cl, 1, l.r_cl, 1);
+        axpy_cl(l.outputs*l.batch, 1, wr.output_cl, 1, l.r_cl, 1);
+
+        activate_array_cl(l.z_cl, l.outputs*l.batch, LOGISTIC);
+        activate_array_cl(l.r_cl, l.outputs*l.batch, LOGISTIC);
+
+        copy_cl(l.outputs*l.batch, l.state_cl, 1, l.forgot_state_cl, 1);
+        mul_cl(l.outputs*l.batch, l.r_cl, 1, l.forgot_state_cl, 1);
+
+        s.input_cl = l.forgot_state_cl;
+        forward_connected_layer_cl(wh, s);
+
+        copy_cl(l.outputs*l.batch, uh.output_cl, 1, l.h_cl, 1);
+        axpy_cl(l.outputs*l.batch, 1, wh.output_cl, 1, l.h_cl, 1);
+
+        if(l.tanh){
+            activate_array_cl(l.h_cl, l.outputs*l.batch, TANH);
+        } else {
+            activate_array_cl(l.h_cl, l.outputs*l.batch, LOGISTIC);
+        }
+
+        weighted_sum_cl(l.state_cl, l.h_cl, l.z_cl, l.outputs*l.batch, l.output_cl);
+        copy_cl(l.outputs*l.batch, l.output_cl, 1, l.state_cl, 1);
+
+        //net.input_cl += l.inputs*l.batch;
+        //l.output_cl += l.outputs*l.batch;
+        increment_layer(&uz, 1);
+        increment_layer(&ur, 1);
+        increment_layer(&uh, 1);
+
+        increment_layer(&wz, 1);
+        increment_layer(&wr, 1);
+        increment_layer(&wh, 1);
+    }
+}
+
+void backward_gru_layer_cl(layer l, network net)
+{
+    network s = {0};
+    s.train = net.train;
+    int i;
+    layer uz = *(l.uz);
+    layer ur = *(l.ur);
+    layer uh = *(l.uh);
+
+    layer wz = *(l.wz);
+    layer wr = *(l.wr);
+    layer wh = *(l.wh);
+
+    increment_layer(&uz, l.steps - 1);
+    increment_layer(&ur, l.steps - 1);
+    increment_layer(&uh, l.steps - 1);
+
+    increment_layer(&wz, l.steps - 1);
+    increment_layer(&wr, l.steps - 1);
+    increment_layer(&wh, l.steps - 1);
+
+    /*net.input_cl += l.inputs*l.batch*(l.steps-1)*/;
+    if(net.delta_cl) /*net.delta_cl += l.inputs*l.batch*(l.steps-1)*/;
+    /*l.output_cl += l.outputs*l.batch*(l.steps-1);
+    l.delta_cl += l.outputs*l.batch*(l.steps-1);*/
+    cl_mem end_state = l.output_cl;
+    for (i = l.steps-1; i >= 0; --i) {
+        if(i != 0) copy_cl(l.outputs*l.batch, l.output_cl /*- l.outputs*l.batch*/, 1, l.state_cl, 1);
+        else copy_cl(l.outputs*l.batch, l.prev_state_cl, 1, l.state_cl, 1);
+        cl_mem prev_delta_cl = (i == 0) ? 0 : l.delta_cl /*- l.outputs*l.batch*/;
+
+        copy_cl(l.outputs*l.batch, uz.output_cl, 1, l.z_cl, 1);
+        axpy_cl(l.outputs*l.batch, 1, wz.output_cl, 1, l.z_cl, 1);
+
+        copy_cl(l.outputs*l.batch, ur.output_cl, 1, l.r_cl, 1);
+        axpy_cl(l.outputs*l.batch, 1, wr.output_cl, 1, l.r_cl, 1);
+
+        activate_array_cl(l.z_cl, l.outputs*l.batch, LOGISTIC);
+        activate_array_cl(l.r_cl, l.outputs*l.batch, LOGISTIC);
+
+        copy_cl(l.outputs*l.batch, uh.output_cl, 1, l.h_cl, 1);
+        axpy_cl(l.outputs*l.batch, 1, wh.output_cl, 1, l.h_cl, 1);
+
+        if(l.tanh){
+            activate_array_cl(l.h_cl, l.outputs*l.batch, TANH);
+        } else {
+            activate_array_cl(l.h_cl, l.outputs*l.batch, LOGISTIC);
+        }
+
+        weighted_delta_cl(l.state_cl, l.h_cl, l.z_cl, prev_delta_cl, uh.delta_cl, uz.delta_cl, l.outputs*l.batch, l.delta_cl);
+
+        if(l.tanh){
+            gradient_array_cl(l.h_cl, l.outputs*l.batch, TANH, uh.delta_cl);
+        } else {
+            gradient_array_cl(l.h_cl, l.outputs*l.batch, LOGISTIC, uh.delta_cl);
+        }
+
+        copy_cl(l.outputs*l.batch, uh.delta_cl, 1, wh.delta_cl, 1);
+
+        copy_cl(l.outputs*l.batch, l.state_cl, 1, l.forgot_state_cl, 1);
+        mul_cl(l.outputs*l.batch, l.r_cl, 1, l.forgot_state_cl, 1);
+        fill_cl(l.outputs*l.batch, 0, l.forgot_delta_cl, 1);
+
+        s.input_cl = l.forgot_state_cl;
+        s.delta_cl = l.forgot_delta_cl;
+
+        backward_connected_layer_cl(wh, s);
+        if(prev_delta_cl) mult_add_into_cl(l.outputs*l.batch, l.forgot_delta_cl, l.r_cl, prev_delta_cl);
+        mult_add_into_cl(l.outputs*l.batch, l.forgot_delta_cl, l.state_cl, ur.delta_cl);
+
+        gradient_array_cl(l.r_cl, l.outputs*l.batch, LOGISTIC, ur.delta_cl);
+        copy_cl(l.outputs*l.batch, ur.delta_cl, 1, wr.delta_cl, 1);
+
+        gradient_array_cl(l.z_cl, l.outputs*l.batch, LOGISTIC, uz.delta_cl);
+        copy_cl(l.outputs*l.batch, uz.delta_cl, 1, wz.delta_cl, 1);
+
+        s.input_cl = l.state_cl;
+        s.delta_cl = prev_delta_cl;
+
+        backward_connected_layer_cl(wr, s);
+        backward_connected_layer_cl(wz, s);
+
+        s.input_cl = net.input_cl;
+        s.delta_cl = net.delta_cl;
+
+        backward_connected_layer_cl(uh, s);
+        backward_connected_layer_cl(ur, s);
+        backward_connected_layer_cl(uz, s);
+
+
+        /*net.input_cl -= l.inputs*l.batch*/;
+        if(net.delta_cl) /*net.delta_cl -= l.inputs*l.batch*/;
+        /*l.output_cl -= l.outputs*l.batch;
+        l.delta_cl -= l.outputs*l.batch;*/
+        increment_layer(&uz, -1);
+        increment_layer(&ur, -1);
+        increment_layer(&uh, -1);
+
+        increment_layer(&wz, -1);
+        increment_layer(&wr, -1);
+        increment_layer(&wh, -1);
+    }
+    copy_cl(l.outputs*l.batch, end_state, 1, l.state_cl, 1);
 }
 #endif

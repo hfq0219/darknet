@@ -24,6 +24,13 @@ static void increment_layer(layer *l, int steps)
     l->x_gpu += num;
     l->x_norm_gpu += num;
 #endif
+#ifdef OPENCL
+    /*l->output_cl += num;
+    l->delta_cl += num;
+    l->x_cl += num;
+    l->x_norm_cl += num; 
+    */
+#endif
 }
 
 layer make_rnn_layer(int batch, int inputs, int outputs, int steps, ACTIVATION activation, int batch_normalize, int adam)
@@ -75,7 +82,15 @@ layer make_rnn_layer(int batch, int inputs, int outputs, int steps, ACTIVATION a
     cudnnSetTensor4dDescriptor(l.output_layer->dstTensorDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, batch, l.output_layer->out_c, l.output_layer->out_h, l.output_layer->out_w); 
 #endif
 #endif
-
+#ifdef OPENCL
+    l.forward_cl = forward_rnn_layer_cl;
+    l.backward_cl = backward_rnn_layer_cl;
+    l.update_cl = update_rnn_layer_cl;
+    l.state_cl = cl_make_array(0, batch*outputs);
+    l.prev_state_cl = cl_make_array(0, batch*outputs);
+    l.output_cl = l.output_layer->output_cl;
+    l.delta_cl = l.output_layer->delta_cl;
+#endif
     return l;
 }
 
@@ -288,5 +303,120 @@ void backward_rnn_layer_gpu(layer l, network net)
     fill_gpu(l.outputs * l.batch, 0, l.state_gpu, 1);
     axpy_gpu(l.outputs * l.batch, 1, last_input, 1, l.state_gpu, 1);
     axpy_gpu(l.outputs * l.batch, 1, last_self, 1, l.state_gpu, 1);
+}
+
+#endif
+
+#ifdef OPENCL
+
+void pull_rnn_layer(layer l)
+{
+    pull_connected_layer(*(l.input_layer));
+    pull_connected_layer(*(l.self_layer));
+    pull_connected_layer(*(l.output_layer));
+}
+
+void push_rnn_layer(layer l)
+{
+    push_connected_layer(*(l.input_layer));
+    push_connected_layer(*(l.self_layer));
+    push_connected_layer(*(l.output_layer));
+}
+
+void update_rnn_layer_cl(layer l, update_args a)
+{
+    update_connected_layer_cl(*(l.input_layer),  a);
+    update_connected_layer_cl(*(l.self_layer),   a);
+    update_connected_layer_cl(*(l.output_layer), a);
+}
+
+void forward_rnn_layer_cl(layer l, network net)
+{
+    network s = {0};
+    s.train = net.train;
+    int i;
+    layer input_layer = *(l.input_layer);
+    layer self_layer = *(l.self_layer);
+    layer output_layer = *(l.output_layer);
+
+    fill_cl(l.outputs * l.batch * l.steps, 0, output_layer.delta_cl, 1);
+    fill_cl(l.outputs * l.batch * l.steps, 0, self_layer.delta_cl, 1);
+    fill_cl(l.outputs * l.batch * l.steps, 0, input_layer.delta_cl, 1);
+
+    if(net.train) {
+        fill_cl(l.outputs * l.batch * l.steps, 0, l.delta_cl, 1);
+        copy_cl(l.outputs*l.batch, l.state_cl, 1, l.prev_state_cl, 1);
+    }
+
+    for (i = 0; i < l.steps; ++i) {
+        s.input_cl = net.input_cl;
+        forward_connected_layer_cl(input_layer, s);
+
+        s.input_cl = l.state_cl;
+        forward_connected_layer_cl(self_layer, s);
+
+        fill_cl(l.outputs * l.batch, 0, l.state_cl, 1);
+        axpy_cl(l.outputs * l.batch, 1, input_layer.output_cl, 1, l.state_cl, 1);
+        axpy_cl(l.outputs * l.batch, 1, self_layer.output_cl, 1, l.state_cl, 1);
+
+        s.input_cl = l.state_cl;
+        forward_connected_layer_cl(output_layer, s);
+
+        //net.input_cl += l.inputs*l.batch;
+        increment_layer(&input_layer, 1);
+        increment_layer(&self_layer, 1);
+        increment_layer(&output_layer, 1);
+    }
+}
+
+void backward_rnn_layer_cl(layer l, network net)
+{
+    network s = {0};
+    s.train = net.train;
+    int i;
+    layer input_layer = *(l.input_layer);
+    layer self_layer = *(l.self_layer);
+    layer output_layer = *(l.output_layer);
+    increment_layer(&input_layer,  l.steps - 1);
+    increment_layer(&self_layer,   l.steps - 1);
+    increment_layer(&output_layer, l.steps - 1);
+    cl_mem last_input = input_layer.output_cl;
+    cl_mem last_self = self_layer.output_cl;
+    for (i = l.steps-1; i >= 0; --i) {
+        fill_cl(l.outputs * l.batch, 0, l.state_cl, 1);
+        axpy_cl(l.outputs * l.batch, 1, input_layer.output_cl, 1, l.state_cl, 1);
+        axpy_cl(l.outputs * l.batch, 1, self_layer.output_cl, 1, l.state_cl, 1);
+
+        s.input_cl = l.state_cl;
+        s.delta_cl = self_layer.delta_cl;
+        backward_connected_layer_cl(output_layer, s);
+
+        if(i != 0) {
+            fill_cl(l.outputs * l.batch, 0, l.state_cl, 1);
+            axpy_cl(l.outputs * l.batch, 1, input_layer.output_cl /*- l.outputs*l.batch*/, 1, l.state_cl, 1);
+            axpy_cl(l.outputs * l.batch, 1, self_layer.output_cl /*- l.outputs*l.batch*/, 1, l.state_cl, 1);
+        }else {
+            copy_cl(l.outputs*l.batch, l.prev_state_cl, 1, l.state_cl, 1);
+        }
+
+        copy_cl(l.outputs*l.batch, self_layer.delta_cl, 1, input_layer.delta_cl, 1);
+
+        s.input_cl = l.state_cl;
+        s.delta_cl = (i > 0) ? self_layer.delta_cl /*- l.outputs*l.batch*/ : 0;
+        if (i == 0) s.delta_cl = 0;
+        backward_connected_layer_cl(self_layer, s);
+
+        s.input_cl = net.input_cl /*+ i*l.inputs*l.batch*/;
+        if(net.delta_cl) s.delta_cl = net.delta_cl /*+ i*l.inputs*l.batch*/;
+        else s.delta_cl = 0;
+        backward_connected_layer_cl(input_layer, s);
+
+        increment_layer(&input_layer,  -1);
+        increment_layer(&self_layer,   -1);
+        increment_layer(&output_layer, -1);
+    }
+    fill_cl(l.outputs * l.batch, 0, l.state_cl, 1);
+    axpy_cl(l.outputs * l.batch, 1, last_input, 1, l.state_cl, 1);
+    axpy_cl(l.outputs * l.batch, 1, last_self, 1, l.state_cl, 1);
 }
 #endif

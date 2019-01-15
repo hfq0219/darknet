@@ -10,6 +10,9 @@ void free_layer(layer l)
 #ifdef GPU
         if(l.rand_gpu)             cuda_free(l.rand_gpu);
 #endif
+#ifdef OPENCL
+        if(l.rand_cl)             cl_free(l.rand_cl);
+#endif
         return;
     }
     if(l.cweights)           free(l.cweights);
@@ -102,7 +105,17 @@ void free_layer(layer l)
     if(l.h_cl)                   cl_free(l.h_cl);
     if(l.m_cl)                   cl_free(l.m_cl);
     if(l.v_cl)                   cl_free(l.v_cl);
-    
+    if(l.prev_state_cl)          cl_free(l.prev_state_cl);
+    if(l.forgot_state_cl)        cl_free(l.forgot_state_cl);
+    if(l.forgot_delta_cl)        cl_free(l.forgot_delta_cl);
+    if(l.state_cl)               cl_free(l.state_cl);
+    if(l.state_delta_cl)         cl_free(l.state_delta_cl);
+    if(l.gate_cl)                cl_free(l.gate_cl);
+    if(l.gate_delta_cl)          cl_free(l.gate_delta_cl);
+    if(l.save_cl)                cl_free(l.save_cl);
+    if(l.save_delta_cl)          cl_free(l.save_delta_cl);
+    if(l.concat_cl)              cl_free(l.concat_cl);
+    if(l.concat_delta_cl)        cl_free(l.concat_delta_cl);
     if(l.binary_input_cl)        cl_free(l.binary_input_cl);
     if(l.binary_weights_cl)      cl_free(l.binary_weights_cl);
     if(l.mean_cl)                cl_free(l.mean_cl);

@@ -141,7 +141,6 @@ void gemm_tt(int M, int N, int K, float ALPHA,
     }
 }
 
-
 void gemm_cpu(int TA, int TB, int M, int N, int K, float ALPHA, 
         float *A, int lda, 
         float *B, int ldb,

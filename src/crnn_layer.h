@@ -19,6 +19,13 @@ void update_crnn_layer_gpu(layer l, update_args a);
 void push_crnn_layer(layer l);
 void pull_crnn_layer(layer l);
 #endif
+#ifdef OPENCL
+void forward_crnn_layer_cl(layer l, network net);
+void backward_crnn_layer_cl(layer l, network net);
+void update_crnn_layer_cl(layer l, update_args a);
+void push_crnn_layer(layer l);
+void pull_crnn_layer(layer l);
+#endif
 
 #endif
 

@@ -432,12 +432,43 @@ struct layer{
     cl_mem z_cl;
     cl_mem r_cl;
     cl_mem h_cl;
+
+    cl_mem temp_cl;
+    cl_mem temp2_cl;
+    cl_mem temp3_cl;
+
+    cl_mem dh_cl;
+    cl_mem hh_cl;
+    cl_mem prev_cell_cl;
+    cl_mem cell_cl;
+    cl_mem f_cl;
+    cl_mem i_cl;
+    cl_mem g_cl;
+    cl_mem o_cl;
+    cl_mem c_cl;
+    cl_mem dc_cl; 
+
     cl_mem m_cl;
     cl_mem v_cl;
     cl_mem bias_m_cl;
     cl_mem scale_m_cl;
     cl_mem bias_v_cl;
     cl_mem scale_v_cl;
+
+    cl_mem combine_cl;
+    cl_mem combine_delta_cl;
+
+    cl_mem prev_state_cl;
+    cl_mem forgot_state_cl;
+    cl_mem forgot_delta_cl;
+    cl_mem state_cl;
+    cl_mem state_delta_cl;
+    cl_mem gate_cl;
+    cl_mem gate_delta_cl;
+    cl_mem save_cl;
+    cl_mem save_delta_cl;
+    cl_mem concat_cl;
+    cl_mem concat_delta_cl;
 
     cl_mem binary_input_cl;
     cl_mem binary_weights_cl;

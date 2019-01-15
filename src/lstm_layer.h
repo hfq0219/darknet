@@ -15,6 +15,11 @@ void update_lstm_layer(layer l, update_args a);
 void forward_lstm_layer_gpu(layer l, network net);
 void backward_lstm_layer_gpu(layer l, network net);
 void update_lstm_layer_gpu(layer l, update_args a); 
-
 #endif
+#ifdef OPENCL
+void forward_lstm_layer_cl(layer l, network net);
+void backward_lstm_layer_cl(layer l, network net);
+void update_lstm_layer_cl(layer l, update_args a); 
+#endif
+
 #endif

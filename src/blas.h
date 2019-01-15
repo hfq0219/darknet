@@ -2,10 +2,6 @@
 #define BLAS_H
 #include "darknet.h"
 
-#ifdef OPENCL
-    #include "opencl_tool.h"
-#endif
-
 void flatten(float *x, int size, int layers, int batch, int forward);
 void pm(int M, int N, float *A);
 float *random_matrix(int rows, int cols);
@@ -107,9 +103,12 @@ void upsample_gpu(float *in, int w, int h, int c, int batch, int stride, int for
 
 #endif
 #ifdef OPENCL
+#include "tree.h"
 
 void axpy_cl(int N, float ALPHA, cl_mem X, int INCX, cl_mem Y, int INCY);
+void axpy_cl_offset(int N, float ALPHA,cl_mem X, int OFFX, int INCX,cl_mem Y, int OFFY, int INCY);
 void copy_cl(int N, cl_mem X, int INCX, cl_mem Y, int INCY);
+void copy_cl_offset(int N,cl_mem X, int OFFX, int INCX,cl_mem Y, int OFFY, int INCY);
 void add_cl(int N, float ALPHA, cl_mem X, int INCX);
 void supp_cl(int N, float ALPHA, cl_mem X, int INCX);
 void mask_cl(int N, cl_mem X, float mask_num, cl_mem mask, float val);
@@ -156,6 +155,7 @@ void adam_update_cl(cl_mem w, cl_mem d, cl_mem m, cl_mem v, float B1, float B2, 
 void adam_cl(int n, cl_mem x, cl_mem m, cl_mem v, float B1, float B2, float rate, float eps, int t);
 
 void flatten_cl(cl_mem x, int spatial, int layers, int batch, int forward, cl_mem out);
+void softmax_tree(cl_mem input, int spatial, int batch, int stride, float temp,cl_mem output, tree hier);
 void upsample_cl(cl_mem in, int w, int h, int c, int batch, int stride, int forward, float scale, cl_mem out);
 
 #endif

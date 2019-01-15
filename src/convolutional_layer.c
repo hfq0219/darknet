@@ -730,28 +730,6 @@ void binarize_weights_cl(cl_mem weights, int n, int size, cl_mem binary)
     cl_error(err);
 }
 
-void smooth_layer(layer l, int size, float rate)
-{
-    int h = l.out_h;
-    int w = l.out_w;
-    int c = l.out_c;
-    size_t n = h*w*c*l.batch;
-    cl_int err;
-    size_t globalSize[3],localSize[3];
-    setWorkItemSize(n,globalSize,localSize);
-    *clKernel=clCreateKernel(*clProgram, "smooth_opencl", err);
-    err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &l.output_cl);
-    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &n);
-    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &l.w);
-    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_int), &l.h);
-    err|=clSetKernelArg(*clKernel, 4, sizeof(cl_int), &l.c);
-    err|=clSetKernelArg(*clKernel, 5, sizeof(cl_int), &size);
-    err|=clSetKernelArg(*clKernel, 6, sizeof(cl_float), &rate);
-    err|=clSetKernelArg(*clKernel, 7, sizeof(cl_mem), &l.delta_cl);
-    err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
-    cl_error(err);
-}
-
 void forward_convolutional_layer_cl(convolutional_layer l, network net)
 {
     fill_cl(l.outputs*l.batch, 0, l.output_cl, 1);
@@ -788,7 +766,6 @@ void forward_convolutional_layer_cl(convolutional_layer l, network net)
             }
             gemm_cl(0,0,m,n,k,1,a,k,b,n,1,c,n);
             cl_free(a);
-            cl_free(b);
             cl_free(c);
             cl_free(im);
         }
@@ -803,6 +780,28 @@ void forward_convolutional_layer_cl(convolutional_layer l, network net)
     activate_array_cl(l.output_cl, l.outputs*l.batch, l.activation);
     //if(l.dot > 0) dot_error_cl(l);
     if(l.binary || l.xnor) swap_binary(&l);
+}
+
+void smooth_layer(layer l, int size, float rate)
+{
+    int h = l.out_h;
+    int w = l.out_w;
+    int c = l.out_c;
+    size_t n = h*w*c*l.batch;
+    cl_int err;
+    size_t globalSize[3],localSize[3];
+    setWorkItemSize(n,globalSize,localSize);
+    *clKernel=clCreateKernel(*clProgram, "smooth_opencl", err);
+    err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &l.output_cl);
+    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &n);
+    err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &l.w);
+    err|=clSetKernelArg(*clKernel, 3, sizeof(cl_int), &l.h);
+    err|=clSetKernelArg(*clKernel, 4, sizeof(cl_int), &l.c);
+    err|=clSetKernelArg(*clKernel, 5, sizeof(cl_int), &size);
+    err|=clSetKernelArg(*clKernel, 6, sizeof(cl_float), &rate);
+    err|=clSetKernelArg(*clKernel, 7, sizeof(cl_mem), &l.delta_cl);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err);
 }
 
 void backward_convolutional_layer_cl(convolutional_layer l, network net)
@@ -841,7 +840,6 @@ void backward_convolutional_layer_cl(convolutional_layer l, network net)
             im2col_cl(im, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, b);
             gemm_cl(0,1,m,n,k,1,a,k,b,k,1,c,n);
             cl_free(a);
-            cl_free(b);
             cl_free(c);
             if (net.delta_cl) {
                 if (l.binary || l.xnor) swap_binary(&l);
@@ -864,7 +862,6 @@ void backward_convolutional_layer_cl(convolutional_layer l, network net)
                 }
                 cl_free(a);
                 cl_free(b);
-                cl_free(c);
             }
             //if(l.xnor) gradient_array_cl(original_input + i*l.c*l.h*l.w, l.c*l.h*l.w, HARDTAN, net.delta_cl /*+ i*l.c*l.h*l.w*/);
             cl_free(im);

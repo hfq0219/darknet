@@ -1,5 +1,10 @@
 #include "opencl_tool.h"
 #include <math.h>
+#include "utils.h"
+#include "blas.h"
+#include <assert.h>
+#include <stdlib.h>
+#include <time.h>
 
 /**创建平台、设备、上下文、命令队列、程序对象,对大部分 OpenCL 程序相同。
  */
@@ -78,12 +83,6 @@ void clean(cl_context *context,cl_command_queue *commandQueue,cl_program *progra
     if(*context!=0)
         clReleaseContext(*context);
 }
-void cl_error(cl_int err){
-    if(err!=CL_SUCCESS){
-        fprintf(stderr,"opencl error.\n");
-        exit(-1);
-    }
-}
 
 void setWorkItemSize(int kernel_num,size_t global_work_size[3],size_t local_work_size[3]){
     extern int CL_BLOCK;
@@ -123,26 +122,50 @@ void setWorkItemSize(int kernel_num,size_t global_work_size[3],size_t local_work
     }
 }
 
+void cl_error(cl_int err){
+    if(err!=CL_SUCCESS){
+        fprintf(stderr,"opencl error.\n");
+        exit(-1);
+    }
+}
+
 cl_mem cl_make_array(float *x, size_t n)
 {
     cl_mem x_cl;
     if(x){
-        cl_mem x_cl=clCreateBuffer(*clContext,CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,sizeof(float)*n,x,NULL);
+        x_cl=clCreateBuffer(*clContext,CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,sizeof(float)*n,x,NULL);
     } else {
-        cl_mem x_cl=clCreateBuffer(*clContext,CL_MEM_READ_WRITE,sizeof(float)*n,NULL,NULL);
+        x_cl=clCreateBuffer(*clContext,CL_MEM_READ_WRITE,sizeof(float)*n,NULL,NULL);
         fill_cl(n, 0, x_cl, 1);
     }
     if(!x_cl) error("Cl malloc failed\n");
     return x_cl;
 }
 
+void cl_random(cl_mem x_cl, size_t n)
+{
+}
+
+float cl_compare(cl_mem x_cl,float *x, size_t n, char *s)
+{
+    float *tmp = calloc(n, sizeof(float));
+    cl_pull_array(x_cl, tmp, n);
+    //int i;
+    //for(i = 0; i < n; ++i) printf("%f %f\n", tmp[i], x[i]);
+    axpy_cpu(n, -1, x, 1, tmp, 1);
+    float err = dot_cpu(n, tmp, 1, tmp, 1);
+    printf("Error %s: %f\n", s, sqrt(err/n));
+    free(tmp);
+    return err;
+}
+
 cl_mem cl_make_int_array(int *x, size_t n)
 {
     cl_mem x_cl;
     if(x){
-        cl_mem x_cl=clCreateBuffer(*clContext,CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,sizeof(int)*n,x,NULL);
+        x_cl=clCreateBuffer(*clContext,CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,sizeof(int)*n,x,NULL);
     } else {
-        cl_mem x_cl=clCreateBuffer(*clContext,CL_MEM_READ_WRITE,sizeof(int)*n,NULL,NULL);
+        x_cl=clCreateBuffer(*clContext,CL_MEM_READ_WRITE,sizeof(int)*n,NULL,NULL);
     }
     if(!x_cl) error("Cl malloc failed\n");
     return x_cl;

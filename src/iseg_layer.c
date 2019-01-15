@@ -48,6 +48,12 @@ layer make_iseg_layer(int batch, int w, int h, int classes, int ids)
     l.output_gpu = cuda_make_array(l.output, batch*l.outputs);
     l.delta_gpu = cuda_make_array(l.delta, batch*l.outputs);
 #endif
+#ifdef OPENCL
+    l.forward_cl = forward_iseg_layer_cl;
+    l.backward_cl = backward_iseg_layer_cl;
+    l.output_cl = cl_make_array(l.output, batch*l.outputs);
+    l.delta_cl = cl_make_array(l.delta, batch*l.outputs);
+#endif
 
     fprintf(stderr, "iseg\n");
     srand(0);
@@ -72,6 +78,13 @@ void resize_iseg_layer(layer *l, int w, int h)
 
     l->delta_gpu =     cuda_make_array(l->delta, l->batch*l->outputs);
     l->output_gpu =    cuda_make_array(l->output, l->batch*l->outputs);
+#endif
+#ifdef OPENCL
+    cl_free(l->delta_cl);
+    cl_free(l->output_cl);
+
+    l->delta_cl = cl_make_array(l->delta, l->batch*l->outputs);
+    l->output_cl = cl_make_array(l->output, l->batch*l->outputs);
 #endif
 }
 
@@ -222,4 +235,28 @@ void backward_iseg_layer_gpu(const layer l, network net)
     axpy_gpu(l.batch*l.inputs, 1, l.delta_gpu, 1, net.delta_gpu, 1);
 }
 #endif
+#ifdef OPENCL
 
+void forward_iseg_layer_cl(const layer l, network net)
+{
+    copy_cl(l.batch*l.inputs, net.input_cl, 1, l.output_cl, 1);
+    int b;
+    for (b = 0; b < l.batch; ++b){
+        activate_array_cl(l.output_cl /*+ b*l.outputs*/, l.classes*l.w*l.h, LOGISTIC);
+        //if(l.extra) activate_array_gpu(l.output_gpu + b*l.outputs + l.classes*l.w*l.h, l.extra*l.w*l.h, LOGISTIC);
+    }
+
+    cl_pull_array(l.output_cl, net.input, l.batch*l.inputs);
+    forward_iseg_layer(l, net);
+    cl_push_array(l.delta_cl, l.delta, l.batch*l.outputs);
+}
+
+void backward_iseg_layer_cl(const layer l, network net)
+{
+    int b;
+    for (b = 0; b < l.batch; ++b){
+        //if(l.extra) gradient_array_gpu(l.output_gpu + b*l.outputs + l.classes*l.w*l.h, l.extra*l.w*l.h, LOGISTIC, l.delta_gpu + b*l.outputs + l.classes*l.w*l.h);
+    }
+    axpy_cl(l.batch*l.inputs, 1, l.delta_cl, 1, net.delta_cl, 1);
+}
+#endif

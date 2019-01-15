@@ -19,6 +19,13 @@ void update_gru_layer_gpu(layer l, update_args a);
 void push_gru_layer(layer l);
 void pull_gru_layer(layer l);
 #endif
+#ifdef OPENCL
+void forward_gru_layer_cl(layer l, network state);
+void backward_gru_layer_cl(layer l, network state);
+void update_gru_layer_cl(layer l, update_args a);
+void push_gru_layer(layer l);
+void pull_gru_layer(layer l);
+#endif
 
 #endif
 

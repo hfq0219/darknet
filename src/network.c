@@ -79,6 +79,15 @@ void reset_network_state(network *net, int b)
             fill_gpu(l.outputs, 0, l.h_gpu + l.outputs*b, 1);
         }
         #endif
+        #ifdef OPENCL
+        layer l = net->layers[i];
+        if(l.state_cl){
+            fill_cl(l.outputs, 0, l.state_cl /*+ l.outputs*b*/, 1);
+        }
+        if(l.h_cl){
+            fill_cl(l.outputs, 0, l.h_cl /*+ l.outputs*b*/, 1);
+        }
+        #endif
     }
 }
 
@@ -194,7 +203,7 @@ void forward_network(network *netp)
     }
 #endif
 #ifdef OPENCL
-    forward_network_cl(netp);   
+    forward_network_cl(netp);
     return;
 #endif
     network net = *netp;
@@ -218,12 +227,12 @@ void update_network(network *netp)
 {
 #ifdef GPU
     if(netp->gpu_index >= 0){
-        update_network_gpu(netp);   
+        update_network_gpu(netp);
         return;
     }
 #endif
 #ifdef OPENCL
-    update_network_cl(netp);   
+    update_network_cl(netp);
     return;
 #endif
     network net = *netp;
