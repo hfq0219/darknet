@@ -84,7 +84,7 @@ void activate_array_cl(cl_mem x, int n, ACTIVATION a)
     cl_int err;
     size_t globalSize[3],localSize[3];
     setWorkItemSize(n,globalSize,localSize);
-    *clKernel=clCreateKernel(*clProgram, "activate_array_opencl", err);
+    *clKernel=clCreateKernel(*clProgram, "activate_array_opencl", &err);
     err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &x);
     err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &n);
     err|=clSetKernelArg(*clKernel, 2, sizeof(ACTIVATION), &a);
@@ -96,7 +96,7 @@ void gradient_array_cl(cl_mem x, int n, ACTIVATION a, cl_mem delta)
     cl_int err;
     size_t globalSize[3],localSize[3];
     setWorkItemSize(n,globalSize,localSize);
-    *clKernel=clCreateKernel(*clProgram, "gradient_array_opencl", err);
+    *clKernel=clCreateKernel(*clProgram, "gradient_array_opencl", &err);
     err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &x);
     err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &n);
     err|=clSetKernelArg(*clKernel, 2, sizeof(ACTIVATION), &a);
@@ -110,7 +110,7 @@ void binary_gradient_array_cl(cl_mem x, cl_mem dx, int n, int size, BINARY_ACTIV
     size_t globalSize[3],localSize[3];
     n/=2;
     setWorkItemSize(n,globalSize,localSize);
-    *clKernel=clCreateKernel(*clProgram, "binary_gradient_array_opencl", err);
+    *clKernel=clCreateKernel(*clProgram, "binary_gradient_array_opencl", &err);
     err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &x);
     err|=clSetKernelArg(*clKernel, 1, sizeof(cl_mem), &dx);
     err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &n);
@@ -126,7 +126,7 @@ void binary_activate_array_cl(cl_mem x, int n, int size, BINARY_ACTIVATION a,cl_
     size_t globalSize[3],localSize[3];
     n/=2;
     setWorkItemSize(n,globalSize,localSize);
-    *clKernel=clCreateKernel(*clProgram, "binary_activate_array_opencl", err);
+    *clKernel=clCreateKernel(*clProgram, "binary_activate_array_opencl", &err);
     err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &x);
     err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &n);
     err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &size);

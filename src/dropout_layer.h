@@ -17,6 +17,7 @@ void forward_dropout_layer_gpu(dropout_layer l, network net);
 void backward_dropout_layer_gpu(dropout_layer l, network net);
 #endif
 #ifdef OPENCL
+#include "opencl_tool.h"
 void forward_dropout_layer_cl(dropout_layer l, network net);
 void backward_dropout_layer_cl(dropout_layer l, network net);
 #endif

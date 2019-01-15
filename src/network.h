@@ -7,7 +7,7 @@
 #include "layer.h"
 #include "data.h"
 #include "tree.h"
-
+#include "opencl_tool.h"
 
 #ifdef GPU
 void pull_network_output(network *net);

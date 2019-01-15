@@ -129,7 +129,7 @@ void forward_crop_layer_cl(crop_layer layer, network net)
     cl_int err;
     size_t globalSize[3],localSize[3];
     setWorkItemSize(size,globalSize,localSize);
-    *clKernel=clCreateKernel(*clProgram, "levels_image_opencl", err);
+    *clKernel=clCreateKernel(*clProgram, "levels_image_opencl",&err);
     err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &net.input_cl);
     err|=clSetKernelArg(*clKernel, 1, sizeof(cl_mem), &layer.rand_cl);
     err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &layer.batch);
@@ -147,7 +147,7 @@ void forward_crop_layer_cl(crop_layer layer, network net)
     size = layer.batch*layer.c*layer.out_w*layer.out_h;
 
     setWorkItemSize(size,globalSize,localSize);
-    *clKernel=clCreateKernel(*clProgram, "forward_crop_layer_opencl", err);
+    *clKernel=clCreateKernel(*clProgram, "forward_crop_layer_opencl", &err);
     err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &net.input_cl);
     err|=clSetKernelArg(*clKernel, 1, sizeof(cl_mem), &layer.rand_cl);
     err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &size);

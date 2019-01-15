@@ -41,6 +41,9 @@ void gemm_cl(int TA, int TB, int M, int N, int K, float ALPHA,
         cl_mem B, int ldb,
         float BETA,
         cl_mem C, int ldc);
-
+void gemm_xx_cl(int M, int N, int K, float ALPHA, 
+        cl_mem A, int lda, 
+        cl_mem B, int ldb,
+        cl_mem C, int ldc,char *kernelFun);
 #endif
 #endif

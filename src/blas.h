@@ -104,7 +104,7 @@ void upsample_gpu(float *in, int w, int h, int c, int batch, int stride, int for
 #endif
 #ifdef OPENCL
 #include "tree.h"
-
+void constrain_cl(int N, float ALPHA, cl_mem X, int INCX);
 void axpy_cl(int N, float ALPHA, cl_mem X, int INCX, cl_mem Y, int INCY);
 void axpy_cl_offset(int N, float ALPHA,cl_mem X, int OFFX, int INCX,cl_mem Y, int OFFY, int INCY);
 void copy_cl(int N, cl_mem X, int INCX, cl_mem Y, int INCY);

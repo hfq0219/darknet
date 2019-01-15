@@ -25,6 +25,7 @@ void cudnn_convolutional_setup(layer *l);
 #endif
 #endif
 #ifdef OPENCL
+#include "opencl_tool.h"
 void forward_convolutional_layer_cl(convolutional_layer layer, network net);
 void backward_convolutional_layer_cl(convolutional_layer layer, network net);
 void update_convolutional_layer_cl(convolutional_layer layer, update_args a);

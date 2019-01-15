@@ -81,7 +81,7 @@ void forward_avgpool_layer_cl(avgpool_layer layer, network net)
     cl_int err;
     size_t globalSize[3],localSize[3];
     setWorkItemSize(n,globalSize,localSize);
-    *clKernel=clCreateKernel(*clProgram, "forward_avgpool_layer_opencl", err);
+    *clKernel=clCreateKernel(*clProgram, "forward_avgpool_layer_opencl", &err);
     err|=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &n);
     err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &layer.w);
     err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &layer.h);
@@ -97,7 +97,7 @@ void backward_avgpool_layer_cl(avgpool_layer layer, network net)
     cl_int err;
     size_t globalSize[3],localSize[3];
     setWorkItemSize(n,globalSize,localSize);
-    *clKernel=clCreateKernel(*clProgram, "backward_avgpool_layer_opencl", err);
+    *clKernel=clCreateKernel(*clProgram, "backward_avgpool_layer_opencl", &err);
     err|=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &n);
     err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &layer.w);
     err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &layer.h);

@@ -1116,7 +1116,7 @@ void softmax_cl(cl_mem input, int n, int batch, int batch_offset, int groups, in
     cl_error(err);
 }
 
-upsample_cl(cl_mem in, int w, int h, int c, int batch, int stride, int forward, float scale, cl_mem out)
+void upsample_cl(cl_mem in, int w, int h, int c, int batch, int stride, int forward, float scale, cl_mem out)
 {
     size_t size = w*h*c*batch*stride*stride;
     cl_int err;

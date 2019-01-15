@@ -11,6 +11,9 @@
 #ifdef AI2
 #include "xnor_layer.h"
 #endif
+#ifdef OPENCL
+#include "opencl_tool.h"
+#endif
 
 void swap_binary(convolutional_layer *l)
 {
@@ -694,7 +697,7 @@ void binarize_cl(cl_mem x, int n, cl_mem binary)
     cl_int err;
     size_t globalSize[3],localSize[3];
     setWorkItemSize(n,globalSize,localSize);
-    *clKernel=clCreateKernel(*clProgram, "binarize_opencl", err);
+    *clKernel=clCreateKernel(*clProgram, "binarize_opencl",&err);
     err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &x);
     err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &n);
     err|=clSetKernelArg(*clKernel, 2, sizeof(cl_mem), &binary);
@@ -707,7 +710,7 @@ void binarize_input_cl(cl_mem input, int n, int size, cl_mem binary)
     cl_int err;
     size_t globalSize[3],localSize[3];
     setWorkItemSize(size,globalSize,localSize);
-    *clKernel=clCreateKernel(*clProgram, "binarize_input_opencl", err);
+    *clKernel=clCreateKernel(*clProgram, "binarize_input_opencl",&err);
     err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &input);
     err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &n);
     err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &size);
@@ -721,7 +724,7 @@ void binarize_weights_cl(cl_mem weights, int n, int size, cl_mem binary)
     cl_int err;
     size_t globalSize[3],localSize[3];
     setWorkItemSize(n,globalSize,localSize);
-    *clKernel=clCreateKernel(*clProgram, "binarize_weights_opencl", err);
+    *clKernel=clCreateKernel(*clProgram, "binarize_weights_opencl",&err);
     err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &weights);
     err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &n);
     err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &size);
@@ -791,7 +794,7 @@ void smooth_layer(layer l, int size, float rate)
     cl_int err;
     size_t globalSize[3],localSize[3];
     setWorkItemSize(n,globalSize,localSize);
-    *clKernel=clCreateKernel(*clProgram, "smooth_opencl", err);
+    *clKernel=clCreateKernel(*clProgram, "smooth_opencl", &err);
     err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &l.output_cl);
     err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &n);
     err|=clSetKernelArg(*clKernel, 2, sizeof(cl_int), &l.w);
@@ -863,7 +866,7 @@ void backward_convolutional_layer_cl(convolutional_layer l, network net)
                 cl_free(a);
                 cl_free(b);
             }
-            //if(l.xnor) gradient_array_cl(original_input + i*l.c*l.h*l.w, l.c*l.h*l.w, HARDTAN, net.delta_cl /*+ i*l.c*l.h*l.w*/);
+            if(l.xnor) gradient_array_cl(original_input /*+ i*l.c*l.h*l.w*/, l.c*l.h*l.w, HARDTAN, net.delta_cl /*+ i*l.c*l.h*l.w*/);
             cl_free(im);
             cl_free(imd);
         }

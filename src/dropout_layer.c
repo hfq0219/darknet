@@ -81,7 +81,7 @@ void forward_dropout_layer_cl(dropout_layer layer, network net)
     cl_int err;
     size_t globalSize[3],localSize[3];
     setWorkItemSize(size,globalSize,localSize);
-    *clKernel=clCreateKernel(*clProgram, "yoloswag420blazeit360noscope", err);
+    *clKernel=clCreateKernel(*clProgram, "yoloswag420blazeit360noscope", &err);
     err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &net.input_cl);
     err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &size);
     err|=clSetKernelArg(*clKernel, 2, sizeof(cl_mem), &layer.rand_cl);
@@ -99,7 +99,7 @@ void backward_dropout_layer_cl(dropout_layer layer, network net)
     cl_int err;
     size_t globalSize[3],localSize[3];
     setWorkItemSize(size,globalSize,localSize);
-    *clKernel=clCreateKernel(*clProgram, "yoloswag420blazeit360noscope", err);
+    *clKernel=clCreateKernel(*clProgram, "yoloswag420blazeit360noscope", &err);
     err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &net.delta_cl);
     err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &size);
     err|=clSetKernelArg(*clKernel, 2, sizeof(cl_mem), &layer.rand_cl);

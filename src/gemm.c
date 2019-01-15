@@ -164,22 +164,6 @@ void gemm_cpu(int TA, int TB, int M, int N, int K, float ALPHA,
         gemm_tt(M, N, K, ALPHA,A,lda, B, ldb,C,ldc);
 }
 #ifdef OPENCL
-void gemm_cl(int TA, int TB, int M, int N, int K, float ALPHA, 
-        cl_mem A, int lda, 
-        cl_mem B, int ldb,
-        float BETA,
-        cl_mem C, int ldc)
-{
-    scal_cl(M*N,BETA,C,1);
-    if(!TA && !TB)
-        gemm_xx_cl(M, N, K, ALPHA,A,lda, B, ldb,C,ldc,"gemm_nn_opencl");
-    else if(TA && !TB)
-        gemm_xx_cl(M, N, K, ALPHA,A,lda, B, ldb,C,ldc,"gemm_tn_opencl");
-    else if(!TA && TB)
-        gemm_xx_cl(M, N, K, ALPHA,A,lda, B, ldb,C,ldc,"gemm_nt_opencl");
-    else
-        gemm_xx_cl(M, N, K, ALPHA,A,lda, B, ldb,C,ldc,"gemm_tt_opencl");
-}
 void gemm_xx_cl(int M, int N, int K, float ALPHA, 
         cl_mem A, int lda, 
         cl_mem B, int ldb,
@@ -201,6 +185,22 @@ void gemm_xx_cl(int M, int N, int K, float ALPHA,
     err|=clSetKernelArg(*clKernel, 9, sizeof(cl_int), &ldc);
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel,3,NULL,globalWorkSize,localWorkSize,0,NULL,NULL);
     cl_error(err);
+}
+void gemm_cl(int TA, int TB, int M, int N, int K, float ALPHA, 
+        cl_mem A, int lda, 
+        cl_mem B, int ldb,
+        float BETA,
+        cl_mem C, int ldc)
+{
+    scal_cl(M*N,BETA,C,1);
+    if(!TA && !TB)
+        gemm_xx_cl(M, N, K, ALPHA,A,lda, B, ldb,C,ldc,"gemm_nn_opencl");
+    else if(TA && !TB)
+        gemm_xx_cl(M, N, K, ALPHA,A,lda, B, ldb,C,ldc,"gemm_tn_opencl");
+    else if(!TA && TB)
+        gemm_xx_cl(M, N, K, ALPHA,A,lda, B, ldb,C,ldc,"gemm_nt_opencl");
+    else
+        gemm_xx_cl(M, N, K, ALPHA,A,lda, B, ldb,C,ldc,"gemm_tt_opencl");
 }
 #endif
 #ifdef GPU
