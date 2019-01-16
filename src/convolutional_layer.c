@@ -765,6 +765,7 @@ void forward_convolutional_layer_cl(convolutional_layer l, network net)
                 im2col_cl(im, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, b);
             }
             gemm_cl(0,0,m,n,k,1,a,k,b,n,1,c,n);
+            clEnqueueCopyBuffer(*clCommandQueue,c,l.output_cl,0,sizeof(float)*(i*l.groups + j)*n*m,sizeof(float)*n*m,0,NULL,NULL);
             cl_free(a);
             cl_free(c);
             cl_free(im);
