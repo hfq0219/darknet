@@ -11,9 +11,6 @@
 #ifdef AI2
 #include "xnor_layer.h"
 #endif
-#ifdef OPENCL
-#include "opencl_tool.h"
-#endif
 
 void swap_binary(convolutional_layer *l)
 {
@@ -754,8 +751,8 @@ void forward_convolutional_layer_cl(convolutional_layer l, network net)
     int n = l.out_w*l.out_h;
     for(i = 0; i < l.batch; ++i){
         for(j = 0; j < l.groups; ++j){
-            cl_mem a = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.nweights, NULL, NULL);
-            clEnqueueCopyBuffer(*clCommandQueue,l.weights_cl,a,sizeof(float)*j*l.nweights/l.groups,0,sizeof(float)*l.nweights,0,NULL,NULL);
+            cl_mem a = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.nweights/l.groups, NULL, NULL);
+            clEnqueueCopyBuffer(*clCommandQueue,l.weights_cl,a,sizeof(float)*j*l.nweights/l.groups,0,sizeof(float)*l.nweights/l.groups,0,NULL,NULL);
             cl_mem b = net.workspace_cl;
             cl_mem c = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*n*m, NULL, NULL);
             clEnqueueCopyBuffer(*clCommandQueue,l.output_cl,c,sizeof(float)*(i*l.groups + j)*n*m,0,sizeof(float)*n*m,0,NULL,NULL);
@@ -823,6 +820,7 @@ void backward_convolutional_layer_cl(convolutional_layer l, network net)
     cl_mem original_input = net.input_cl;
 
     if(l.xnor) net.input_cl = l.binary_input_cl;
+
     int m = l.n/l.groups;
     int n = l.size*l.size*l.c/l.groups;
     int k = l.out_w*l.out_h;
@@ -866,7 +864,18 @@ void backward_convolutional_layer_cl(convolutional_layer l, network net)
                 cl_free(a);
                 cl_free(b);
             }
-            if(l.xnor) gradient_array_cl(original_input /*+ i*l.c*l.h*l.w*/, l.c*l.h*l.w, HARDTAN, net.delta_cl /*+ i*l.c*l.h*l.w*/);
+            if(l.xnor){
+                cl_mem tmp_input=clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.c*l.h*l.w, NULL, NULL);
+                cl_mem tmp_delta=clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.c*l.h*l.w, NULL, NULL);
+                clEnqueueCopyBuffer(*clCommandQueue,original_input,tmp_input,sizeof(float)*i*l.c*l.h*l.w,0,sizeof(float)*l.c*l.h*l.w,0,NULL,NULL);
+                clEnqueueCopyBuffer(*clCommandQueue,net.delta_cl,tmp_delta,sizeof(float)*i*l.c*l.h*l.w,0,sizeof(float)*l.c*l.h*l.w,0,NULL,NULL);
+                //gradient_array_cl(original_input /*+ i*l.c*l.h*l.w*/, l.c*l.h*l.w, HARDTAN, net.delta_cl /*+ i*l.c*l.h*l.w*/);
+                gradient_array_cl(tmp_input,l.c*l.h*l.w,HARDTAN,tmp_delta);
+                clEnqueueCopyBuffer(*clCommandQueue,tmp_input,original_input,0,sizeof(float)*i*l.c*l.h*l.w,sizeof(float)*l.c*l.h*l.w,0,NULL,NULL);
+                clEnqueueCopyBuffer(*clCommandQueue,tmp_delta,net.delta_cl,0,sizeof(float)*i*l.c*l.h*l.w,sizeof(float)*l.c*l.h*l.w,0,NULL,NULL);
+                cl_free(tmp_input);
+                cl_free(tmp_delta);
+            }
             cl_free(im);
             cl_free(imd);
         }

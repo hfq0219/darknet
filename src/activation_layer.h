@@ -15,7 +15,6 @@ void forward_activation_layer_gpu(layer l, network net);
 void backward_activation_layer_gpu(layer l, network net);
 #endif
 #ifdef OPENCL
-#include "opencl_tool.h"
 void forward_activation_layer_cl(layer l, network net);
 void backward_activation_layer_cl(layer l, network net);
 #endif

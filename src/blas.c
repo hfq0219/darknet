@@ -351,14 +351,9 @@ void upsample_cpu(float *in, int w, int h, int c, int batch, int stride, int for
 void scale_bias_cl(cl_mem output, cl_mem biases, int batch, int n, int size)
 {
     cl_int err;
-    //int BLOCK=512;
-    //size_t globalSize[3]={((size-1)/BLOCK + 1)*BLOCK,n,batch};
-    //if(((size-1)/BLOCK + 1)*BLOCK>1024){
-    //    fprintf(stderr,"wrong work size.\n");
-    //    exit(-1);
-    //}
-    size_t globalSize[3],localSize[3];
-    setWorkItemSize(size*n*batch,globalSize,localSize);
+    size_t globalSize[3]={((size-1)/BLOCK + 1)*BLOCK,n,batch};
+    size_t localSize[3]={BLOCK,1,1};
+
     *clKernel=clCreateKernel(*clProgram,"scale_bias_opencl",&err);
     err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&output);
     err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&biases);
@@ -371,8 +366,9 @@ void scale_bias_cl(cl_mem output, cl_mem biases, int batch, int n, int size)
 void backward_scale_cl(cl_mem x_norm, cl_mem delta, int batch, int n, int size, cl_mem scale_updates)
 {
     cl_int err;
-    size_t globalSize[3],localSize[3];
-    setWorkItemSize(n,globalSize,localSize);
+    size_t globalSize[3]={n*BLOCK,1,1};
+    size_t localSize[3]={BLOCK,1,1};
+
     *clKernel=clCreateKernel(*clProgram,"backward_scale_opencl",&err);
     err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&x_norm);
     err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&delta);
@@ -416,8 +412,9 @@ void backward_bias_cl(cl_mem bias_updates, cl_mem delta, int batch, int n, int s
         cl_error(err,"backward_bias_cl");
     }else{
         cl_int err;
-        size_t globalSize[3],localSize[3];
-        setWorkItemSize(n,globalSize,localSize);
+        size_t globalSize[3]={n*BLOCK,1,1};
+        size_t localSize[3]={BLOCK,1,1};
+
         *clKernel=clCreateKernel(*clProgram,"backward_bias_opencl",&err);
         err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&bias_updates);
         err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&delta);
@@ -502,8 +499,9 @@ void mean_delta_cl(cl_mem delta, cl_mem variance, int batch, int filters, int sp
 void fast_mean_delta_cl(cl_mem delta,cl_mem variance, int batch, int filters, int spatial,cl_mem mean_delta)
 {
     cl_int err;
-    size_t globalSize[3],localSize[3];
-    setWorkItemSize(filters,globalSize,localSize);
+    size_t globalSize[3]={filters*BLOCK,1,1};
+    size_t localSize[3]={BLOCK,1,1};
+
     *clKernel=clCreateKernel(*clProgram,"fast_mean_delta_opencl",&err);
     err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&delta);
     err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&variance);
@@ -518,8 +516,9 @@ void fast_mean_delta_cl(cl_mem delta,cl_mem variance, int batch, int filters, in
 void fast_variance_delta_cl(cl_mem x,cl_mem delta,cl_mem mean,cl_mem variance, int batch, int filters, int spatial,cl_mem variance_delta)
 {
     cl_int err;
-    size_t globalSize[3],localSize[3];
-    setWorkItemSize(filters,globalSize,localSize);
+    size_t globalSize[3]={filters*BLOCK,1,1};
+    size_t localSize[3]={BLOCK,1,1};
+
     *clKernel=clCreateKernel(*clProgram,"fast_variance_delta_opencl",&err);
     err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&x);
     err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&delta);
@@ -571,8 +570,9 @@ void l2normalize_cl(cl_mem x, cl_mem dx, int batch, int filters, int spatial)
 void fast_mean_cl(cl_mem x, int batch, int filters, int spatial,cl_mem mean)
 {
     cl_int err;
-    size_t globalSize[3],localSize[3];
-    setWorkItemSize(filters,globalSize,localSize);
+    size_t globalSize[3]={filters*BLOCK,1,1};
+    size_t localSize[3]={BLOCK,1,1};
+
     *clKernel=clCreateKernel(*clProgram,"fast_mean_opencl",&err);
     err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&x);
     err|=clSetKernelArg(*clKernel,1,sizeof(cl_int),&batch);
@@ -586,8 +586,9 @@ void fast_mean_cl(cl_mem x, int batch, int filters, int spatial,cl_mem mean)
 void fast_variance_cl(cl_mem x,cl_mem mean, int batch, int filters, int spatial,cl_mem variance)
 {
     cl_int err;
-    size_t globalSize[3],localSize[3];
-    setWorkItemSize(filters,globalSize,localSize);
+    size_t globalSize[3]={filters*BLOCK,1,1};
+    size_t localSize[3]={BLOCK,1,1};
+    
     *clKernel=clCreateKernel(*clProgram,"fast_variance_opencl",&err);
     err|=clSetKernelArg(*clKernel,0,sizeof(cl_mem),&x);
     err|=clSetKernelArg(*clKernel,1,sizeof(cl_mem),&mean);
@@ -1131,10 +1132,9 @@ void upsample_cl(cl_mem in, int w, int h, int c, int batch, int stride, int forw
     err|=clSetKernelArg(*clKernel,4,sizeof(cl_int),&c);
     err|=clSetKernelArg(*clKernel,5,sizeof(cl_int),&batch);
     err|=clSetKernelArg(*clKernel,6,sizeof(cl_int),&stride);
-    err|=clSetKernelArg(*clKernel,7,sizeof(cl_int),&stride);
-    err|=clSetKernelArg(*clKernel,8,sizeof(cl_int),&forward);
-    err|=clSetKernelArg(*clKernel,9,sizeof(cl_float),&scale);
-    err|=clSetKernelArg(*clKernel,10,sizeof(cl_mem),&out);
+    err|=clSetKernelArg(*clKernel,7,sizeof(cl_int),&forward);
+    err|=clSetKernelArg(*clKernel,8,sizeof(cl_float),&scale);
+    err|=clSetKernelArg(*clKernel,9,sizeof(cl_mem),&out); 
     err|=clEnqueueNDRangeKernel(*clCommandQueue,*clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
     cl_error(err,"upsample_cl");
 }

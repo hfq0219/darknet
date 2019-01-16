@@ -740,12 +740,6 @@ void fill_cl(int N, float ALPHA, cl_mem X, int INCX);
 void scal_cl(int N, float ALPHA, cl_mem X, int INCX);
 void copy_cl(int N, cl_mem X, int INCX, cl_mem Y, int INCY);
 
-void cl_free(cl_mem x_cl);
-cl_mem cl_make_array(float *x, size_t n);
-void cl_pull_array(cl_mem x_cl, float *x, size_t n);
-float cl_mag_array(cl_mem x_cl, size_t n);
-void cl_push_array(cl_mem x_cl, float *x, size_t n);
-
 void forward_network_cl(network *net);
 void backward_network_cl(network *net);
 void update_network_cl(network *net);

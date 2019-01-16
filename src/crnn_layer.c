@@ -25,6 +25,10 @@ static void increment_layer(layer *l, int steps)
     l->x_norm_gpu += num;
 #endif
 #ifdef OPENCL
+    clEnqueueCopyBuffer(*clCommandQueue,l->output_cl,l->output_cl,sizeof(float)*num,0,sizeof(float)*num,0,NULL,NULL);
+    clEnqueueCopyBuffer(*clCommandQueue,l->delta_cl,l->delta_cl,sizeof(float)*num,0,sizeof(float)*num,0,NULL,NULL);
+    clEnqueueCopyBuffer(*clCommandQueue,l->x_cl,l->x_cl,sizeof(float)*num,0,sizeof(float)*num,0,NULL,NULL);
+    clEnqueueCopyBuffer(*clCommandQueue,l->x_norm_cl,l->x_norm_cl,sizeof(float)*num,0,sizeof(float)*num,0,NULL,NULL);
     //l->output_cl += num;
     //l->delta_cl += num;
     //l->x_cl += num;

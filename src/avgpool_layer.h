@@ -19,7 +19,6 @@ void forward_avgpool_layer_gpu(avgpool_layer l, network net);
 void backward_avgpool_layer_gpu(avgpool_layer l, network net);
 #endif
 #ifdef OPENCL
-#include "opencl_tool.h"
 void forward_avgpool_layer_cl(avgpool_layer l, network net);
 void backward_avgpool_layer_cl(avgpool_layer l, network net);
 #endif

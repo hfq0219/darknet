@@ -5,7 +5,6 @@
 #include <stdio.h>
 
 #ifdef OPENCL
-    int CL_BLOCK=32;
     cl_platform_id *clPlatform=0;
     cl_device_id *clDevice=0;
     cl_context *clContext=0;
@@ -444,7 +443,6 @@ int main(int argc, char **argv)
     }
     fprintf(stderr,"start opencl...\n");
 #endif
-
     if (0 == strcmp(argv[1], "average")){
         average(argc, argv);
     } else if (0 == strcmp(argv[1], "yolo")){

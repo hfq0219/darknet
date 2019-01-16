@@ -69,16 +69,6 @@ void backward_activation_layer_gpu(layer l, network net)
 }
 #endif
 #ifdef OPENCL
-void forward_activation_layer_cl(layer l, network net)
-{
-    copy_cl(l.outputs*l.batch, net.input_cl, 1, l.output_cl, 1);
-    activate_array_cl(l.output_cl, l.outputs*l.batch, l.activation);
-}
-void backward_activation_layer_cl(layer l, network net)
-{
-    gradient_array_cl(l.output_cl, l.outputs*l.batch, l.activation, l.delta_cl);
-    copy_cl(l.outputs*l.batch, l.delta_cl, 1, net.delta_cl, 1);
-}
 void activate_array_cl(cl_mem x, int n, ACTIVATION a) 
 {
     cl_int err;
@@ -134,5 +124,15 @@ void binary_activate_array_cl(cl_mem x, int n, int size, BINARY_ACTIVATION a,cl_
     err|=clSetKernelArg(*clKernel, 4, sizeof(cl_mem), &y);
     err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 3, NULL, globalSize, localSize, 0, NULL, NULL);
     cl_error(err,"binary_activate_array_cl");
+}
+void forward_activation_layer_cl(layer l, network net)
+{
+    copy_cl(l.outputs*l.batch, net.input_cl, 1, l.output_cl, 1);
+    activate_array_cl(l.output_cl, l.outputs*l.batch, l.activation);
+}
+void backward_activation_layer_cl(layer l, network net)
+{
+    gradient_array_cl(l.output_cl, l.outputs*l.batch, l.activation, l.delta_cl);
+    copy_cl(l.outputs*l.batch, l.delta_cl, 1, net.delta_cl, 1);
 }
 #endif

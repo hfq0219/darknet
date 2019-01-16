@@ -25,6 +25,10 @@ static void increment_layer(layer *l, int steps)
     l->x_norm_gpu += num;
 #endif
 #ifdef OPENCL
+    clEnqueueCopyBuffer(*clCommandQueue,l->output_cl,l->output_cl,sizeof(float)*num,0,sizeof(float)*num,0,NULL,NULL);
+    clEnqueueCopyBuffer(*clCommandQueue,l->delta_cl,l->delta_cl,sizeof(float)*num,0,sizeof(float)*num,0,NULL,NULL);
+    clEnqueueCopyBuffer(*clCommandQueue,l->x_cl,l->x_cl,sizeof(float)*num,0,sizeof(float)*num,0,NULL,NULL);
+    clEnqueueCopyBuffer(*clCommandQueue,l->x_norm_cl,l->x_norm_cl,sizeof(float)*num,0,sizeof(float)*num,0,NULL,NULL);
     /*l->output_cl += num;
     l->delta_cl += num;
     l->x_cl += num;
@@ -508,6 +512,9 @@ void forward_gru_layer_cl(layer l, network net)
 
         //net.input_cl += l.inputs*l.batch;
         //l.output_cl += l.outputs*l.batch;
+        clEnqueueCopyBuffer(*clCommandQueue,net.input_cl,net.input_cl,sizeof(float)*i*l.inputs*l.batch,0,sizeof(float)*l.inputs*l.batch,0,NULL,NULL);
+        clEnqueueCopyBuffer(*clCommandQueue,l.output_cl,l.output_cl,sizeof(float)*i*l.outputs*l.batch,0,sizeof(float)*l.outputs*l.batch,0,NULL,NULL);
+        
         increment_layer(&uz, 1);
         increment_layer(&ur, 1);
         increment_layer(&uh, 1);
@@ -539,12 +546,19 @@ void backward_gru_layer_cl(layer l, network net)
     increment_layer(&wr, l.steps - 1);
     increment_layer(&wh, l.steps - 1);
 
+    clEnqueueCopyBuffer(*clCommandQueue,net.input_cl,net.input_cl,sizeof(float)*l.inputs*l.batch*(l.steps-1),0,sizeof(float)*l.inputs*l.batch,0,NULL,NULL);
+
     /*net.input_cl += l.inputs*l.batch*(l.steps-1)*/;
-    if(net.delta_cl) /*net.delta_cl += l.inputs*l.batch*(l.steps-1)*/;
+    if(net.delta_cl) 
+        clEnqueueCopyBuffer(*clCommandQueue,net.delta_cl,net.delta_cl,sizeof(float)*l.inputs*l.batch*(l.steps-1),0,sizeof(float)*l.inputs*l.batch,0,NULL,NULL);
+        /*net.delta_cl += l.inputs*l.batch*(l.steps-1)*/;
+    clEnqueueCopyBuffer(*clCommandQueue,l.output_cl,l.output_cl,sizeof(float)*l.outputs*l.batch*(l.steps-1),0,sizeof(float)*l.outputs*l.batch,0,NULL,NULL);
+    clEnqueueCopyBuffer(*clCommandQueue,l.delta_cl,l.delta_cl,sizeof(float)*l.outputs*l.batch*(l.steps-1),0,sizeof(float)*l.outputs*l.batch,0,NULL,NULL);
     /*l.output_cl += l.outputs*l.batch*(l.steps-1);
     l.delta_cl += l.outputs*l.batch*(l.steps-1);*/
     cl_mem end_state = l.output_cl;
     for (i = l.steps-1; i >= 0; --i) {
+        
         if(i != 0) copy_cl(l.outputs*l.batch, l.output_cl /*- l.outputs*l.batch*/, 1, l.state_cl, 1);
         else copy_cl(l.outputs*l.batch, l.prev_state_cl, 1, l.state_cl, 1);
         cl_mem prev_delta_cl = (i == 0) ? 0 : l.delta_cl /*- l.outputs*l.batch*/;

@@ -46,8 +46,9 @@ void im2col_cl(cl_mem im,
     int height_col = (height + 2 * pad - ksize) / stride + 1;
     int width_col = (width + 2 * pad - ksize) / stride + 1;
     int num_kernels = channels * height_col * width_col;
-    size_t globalWorkSize[3],localWorkSize[3];
-    setWorkItemSize(num_kernels,globalWorkSize,localWorkSize);
+    size_t globalWorkSize[3]={(num_kernels+BLOCK-1)/BLOCK*BLOCK,1,1};
+    size_t localWorkSize[3]={BLOCK,1,1};
+
     cl_int err;
     *clKernel=clCreateKernel(*clProgram, "im2col_opencl", &err);
     err|=clSetKernelArg(*clKernel, 0, sizeof(cl_int), &num_kernels);

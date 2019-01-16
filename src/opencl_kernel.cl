@@ -1,5 +1,4 @@
-__constant int BLOCK=1024;
-__constant int threads = 1024;
+#define BLOCK 512
 //----------------------activation_kernels.cu-------------------------------//
 typedef enum{
     LOGISTIC, RELU, RELIE, LINEAR, RAMP, TANH, PLSE, LEAKY, ELU, LOGGY, STAIR, HARDTAN, LHTAN, SELU
@@ -142,10 +141,10 @@ float gradient_kernel(float x, ACTIVATION a)
 }
 __kernel void binary_gradient_array_opencl(__global float *x,__global float *dy, int n, int s, BINARY_ACTIVATION a,__global float *dx)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int id = x_+y_*m_+z_*m_*n_;
+    int id = (x_+y_*z_)*m_+n_;
     int i = id % s;
     int b = id / s;
     float x1 = x[b*s + i];
@@ -158,10 +157,10 @@ __kernel void binary_gradient_array_opencl(__global float *x,__global float *dy,
 }
 __kernel void binary_activate_array_opencl(__global float *x, int n, int s, BINARY_ACTIVATION a,__global float *y)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int id = x_+y_*m_+z_*m_*n_;
+    int id = (x_+y_*z_)*m_+n_;
     int i = id % s;
     int b = id / s;
     float x1 = x[b*s + i];
@@ -170,28 +169,28 @@ __kernel void binary_activate_array_opencl(__global float *x, int n, int s, BINA
 }
 __kernel void activate_array_opencl(__global float *x, int n, ACTIVATION a)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i < n) x[i] = activate_kernel(x[i], a);
 }
 
 __kernel void gradient_array_opencl(__global float *x, int n, ACTIVATION a,__global float *delta)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i < n) delta[i] *= gradient_kernel(x[i], a);
 }
 //----------------------------------avgpool_layer_kernels.cu--------------------------------------//
 __kernel void forward_avgpool_layer_opencl(int n, int w, int h, int c,__global float *input,__global float *output)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int id = x_+y_*m_+z_*m_*n_;
+    int id = (x_+y_*z_)*m_+n_;
     if(id >= n) return;
 
     int k = id % c;
@@ -209,10 +208,10 @@ __kernel void forward_avgpool_layer_opencl(int n, int w, int h, int c,__global f
 }
 __kernel void backward_avgpool_layer_opencl(int n, int w, int h, int c,__global float *in_delta,__global float *out_delta)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int id = x_+y_*m_+z_*m_*n_;
+    int id = (x_+y_*z_)*m_+n_;
     if(id >= n) return;
 
     int k = id % c;
@@ -238,7 +237,7 @@ __kernel void scale_bias_opencl(__global float *output,__global float *biases, i
 }
 __kernel void backward_scale_opencl(__global float *x_norm,__global float *delta, int batch, int n, int size,__global float *scale_updates)
 {
-    __local float part[1024];
+    __local float part[BLOCK];
     int i,b;
     int filter = get_group_id(0);
     int p = get_local_id(0);
@@ -257,10 +256,10 @@ __kernel void backward_scale_opencl(__global float *x_norm,__global float *delta
 }
 __kernel void add_bias_opencl(__global float *output,__global float *biases, int batch, int n, int size)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int index = x_+y_*m_+z_*m_*n_;
+    int index = (x_+y_*z_)*m_+n_;
     if (index >= n*size*batch) return;
     int i = index % size;
     index /= size;
@@ -272,10 +271,10 @@ __kernel void add_bias_opencl(__global float *output,__global float *biases, int
 }
 __kernel void backward_bias_conn_opencl(__global float *bias_updates,__global float *delta, int batch, int n)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int index = x_+y_*m_+z_*m_*n_;
+    int index = (x_+y_*z_)*m_+n_;
     if (index >= n) return;
     int b;
     float sum = 0;
@@ -287,7 +286,7 @@ __kernel void backward_bias_conn_opencl(__global float *bias_updates,__global fl
 }
 __kernel void backward_bias_opencl(__global float *bias_updates,__global float *delta, int batch, int n, int size)
 {
-    __local float part[1024];
+    __local float part[BLOCK];
     int i,b;
     int filter = get_group_id(0);
     int p = get_local_id(0);
@@ -306,10 +305,10 @@ __kernel void backward_bias_opencl(__global float *bias_updates,__global float *
 }
 __kernel void adam_opencl(int N,__global float *x,__global float *m,__global float *v, float B1, float B2, float rate, float eps, int t)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int index = x_+y_*m_+z_*m_*n_;
+    int index = (x_+y_*z_)*m_+n_;
     if (index >= N) return;
 
     float mhat = m[index] / (1.f - pow(B1, t));
@@ -320,10 +319,10 @@ __kernel void adam_opencl(int N,__global float *x,__global float *m,__global flo
 __kernel void normalize_opencl(int N,__global float *x,__global float *mean,__global float *variance,
         int batch, int filters, int spatial)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int index = x_+y_*m_+z_*m_*n_;
+    int index = (x_+y_*z_)*m_+n_;
     if(index>=N) return;
     
     int f=(index/spatial)%filters;
@@ -332,10 +331,10 @@ __kernel void normalize_opencl(int N,__global float *x,__global float *mean,__gl
 __kernel void normalize_delta_opencl(int N,__global float *x,__global float *mean,__global float *variance,
         __global float *mean_delta,__global float *variance_delta, int batch, int filters, int spatial,__global float *delta)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int index = x_+y_*m_+z_*m_*n_;
+    int index = (x_+y_*z_)*m_+n_;
     if (index >= N) return;
     int f = (index/spatial)%filters;
     
@@ -344,10 +343,10 @@ __kernel void normalize_delta_opencl(int N,__global float *x,__global float *mea
 __kernel void  variance_delta_opencl(__global float *x,__global float *delta,__global float *mean,
         __global float *variance, int batch, int filters, int spatial,__global float *variance_delta)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if (i >= filters) return;
     int j,k;
     variance_delta[i] = 0;
@@ -362,10 +361,10 @@ __kernel void  variance_delta_opencl(__global float *x,__global float *delta,__g
 __kernel void accumulate_opencl(__global float *x, int n, int groups,__global float *sum)
 {
     int k;
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if (i >= groups) return;
     sum[i] = 0;
     for(k = 0; k < n; ++k){
@@ -374,7 +373,7 @@ __kernel void accumulate_opencl(__global float *x, int n, int groups,__global fl
 }
 __kernel void fast_mean_delta_opencl(__global float *delta,__global float *variance, int batch, int filters, int spatial,__global float *mean_delta)
 {
-    __local float loca[1024];
+    __local float loca[BLOCK];
 
     int id = get_local_id(0);
     loca[id] = 0;
@@ -383,7 +382,7 @@ __kernel void fast_mean_delta_opencl(__global float *delta,__global float *varia
 
     int i, j;
     for(j = 0; j < batch; ++j){
-        for(i = 0; i < spatial; i += threads){
+        for(i = 0; i < spatial; i += BLOCK){
             int index = j*spatial*filters + filter*spatial + i + id;
             loca[id] += (i+id < spatial) ? delta[index] : 0;
         }
@@ -393,7 +392,7 @@ __kernel void fast_mean_delta_opencl(__global float *delta,__global float *varia
 
     if(id == 0){
         mean_delta[filter] = 0;
-        for(i = 0; i < threads; ++i){
+        for(i = 0; i < BLOCK; ++i){
             mean_delta[filter] += loca[i];
         }
         mean_delta[filter] *= (-1.f/sqrt(variance[filter] + .00001f));
@@ -401,7 +400,7 @@ __kernel void fast_mean_delta_opencl(__global float *delta,__global float *varia
 }
 __kernel void  fast_variance_delta_opencl(__global float *x,__global float *delta,__global float *mean,__global float *variance, int batch, int filters, int spatial,__global float *variance_delta)
 {
-    __local float loca[1024];
+    __local float loca[BLOCK];
 
     int id = get_local_id(0);
     loca[id] = 0;
@@ -410,7 +409,7 @@ __kernel void  fast_variance_delta_opencl(__global float *x,__global float *delt
 
     int i, j;
     for(j = 0; j < batch; ++j){
-        for(i = 0; i < spatial; i += threads){
+        for(i = 0; i < spatial; i += BLOCK){
             int index = j*spatial*filters + filter*spatial + i + id;
 
             loca[id] += (i+id < spatial) ? delta[index]*(x[index] - mean[filter]) : 0;
@@ -421,7 +420,7 @@ __kernel void  fast_variance_delta_opencl(__global float *x,__global float *delt
 
     if(id == 0){
         variance_delta[filter] = 0;
-        for(i = 0; i < threads; ++i){
+        for(i = 0; i < BLOCK; ++i){
             variance_delta[filter] += loca[i];
         }
         variance_delta[filter] *= -.5f * pow(variance[filter] + .00001f, (float)(-3.f/2.f));
@@ -430,10 +429,10 @@ __kernel void  fast_variance_delta_opencl(__global float *x,__global float *delt
 __kernel void mean_delta_opencl(__global float *delta,__global float *variance, int batch, int filters,
         int spatial,__global float *mean_delta)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if (i >= filters) return;
     int j,k;
     mean_delta[i] = 0;
@@ -448,10 +447,10 @@ __kernel void mean_delta_opencl(__global float *delta,__global float *variance, 
 __kernel void  mean_opencl(__global float *x, int batch, int filters, int spatial,__global float *mean)
 {
     float scale = 1.f/(batch * spatial);
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if (i >= filters) return;
     int j,k;
     mean[i] = 0;
@@ -469,10 +468,10 @@ __kernel void variance_opencl(__global float *x,__global float *mean, int batch,
 {
     float scale = 1.f/(batch * spatial - 1);
     int j,k;
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if (i >= filters) return;
     variance[i] = 0;
     for(j = 0; j < batch; ++j){
@@ -487,10 +486,10 @@ __kernel void variance_opencl(__global float *x,__global float *mean, int batch,
 __kernel void reorg_opencl(int N,__global float *x, int w, int h, int c, int batch, int stride, 
         int forward,__global float *out)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i >= N) return;
     int in_index = i;
     int in_w = i%w;
@@ -521,48 +520,48 @@ __kernel void reorg_opencl(int N,__global float *x, int w, int h, int c, int bat
 }
 __kernel void axpy_opencl(int N,float ALPHA,__global float *X,int OFFX,int INCX,__global float *Y,int OFFY,int INCY)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int index = x_+y_*m_+z_*m_*n_;
+    int index = (x_+y_*z_)*m_+n_;
     if(index<N){
         Y[OFFY+index*INCY] += ALPHA*X[OFFX+index*INCX];
     }
 }
 __kernel void pow_opencl(int N,float ALPHA,__global float *X,int INCX,__global float *Y,int INCY)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int index = x_+y_*m_+z_*m_*n_;
+    int index = (x_+y_*z_)*m_+n_;
     if(index<N){
         Y[index*INCY] = pow(X[index*INCX],ALPHA);
     }
 }
 __kernel void const_opencl(int N, float ALPHA,__global float *X, int INCX)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i < N) X[i*INCX] = ALPHA;
 }
 
 __kernel void constrain_opencl(int N, float ALPHA,__global float *X, int INCX)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i < N) X[i*INCX] = fmin(ALPHA, fmax(-ALPHA, X[i*INCX]));
 }
 
 __kernel void supp_opencl(int N, float ALPHA,__global float *X, int INCX)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i < N) {
         if((X[i*INCX] * X[i*INCX]) < (ALPHA * ALPHA)) X[i*INCX] = 0;
     }
@@ -570,80 +569,70 @@ __kernel void supp_opencl(int N, float ALPHA,__global float *X, int INCX)
 
 __kernel void add_opencl(int N, float ALPHA,__global float *X, int INCX)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i < N) X[i*INCX] += ALPHA;
 }
 __kernel void scal_opencl(int N,float ALPHA,__global float *X,int INCX)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int index = x_+y_*m_+z_*m_*n_;
-    if(index<N){
-        X[index*INCX] *= ALPHA;
-    }
+    int index = (x_+y_*z_)*m_+n_;
+    if(index<N) X[index*INCX] *= ALPHA;
 }
 __kernel void fill_opencl(int N,float ALPHA,__global float *X,int INCX)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
-    if(i<N){
-        X[i*INCX] = ALPHA;
-    }
+    int i = (x_+y_*z_)*m_+n_;
+    if(i<N) X[i*INCX] = ALPHA;
 }
 __kernel void copy_opencl(int N,__global float *X,int OFFX,int INCX,__global float *Y,int OFFY,int INCY)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
-    if(i<N){
-        Y[i*INCY+OFFY] = X[i*INCX+OFFX];
-    }
+    int i = (x_+y_*z_)*m_+n_;
+    if(i<N) Y[i*INCY+OFFY] = X[i*INCX+OFFX];
 }
 __kernel void mul_opencl(int N,__global float *X,int INCX,__global float *Y,int INCY)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
-    if(i<N){
-        Y[i*INCY] *= X[i*INCX];
-    }
+    int i = (x_+y_*z_)*m_+n_;
+    if(i<N) Y[i*INCY] *= X[i*INCX];
 }
 __kernel void l2norm_opencl(int N,__global float *x,__global float *dx, int batch, int filters, int spatial)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int index = x_+y_*m_+z_*m_*n_;
+    int index = (x_+y_*z_)*m_+n_;
     if (index >= N) return;
-    else{
-        int b = index / spatial;
-        int i = index % spatial;
-        int f;
-        float sum = 0;
-        for(f = 0; f < filters; ++f){
-            int index = b*filters*spatial + f*spatial + i;
-            sum += pow(x[index], 2);
-        }
-        sum = sqrt(sum);
-        if(sum == 0) sum = 1;
-        for(f = 0; f < filters; ++f){
-            int index = b*filters*spatial + f*spatial + i;
-            x[index] /= sum;
-            dx[index] = (1 - x[index]) / sum;
-        }
+    int b = index / spatial;
+    int i = index % spatial;
+    int f;
+    float sum = 0;
+    for(f = 0; f < filters; ++f){
+        int index = b*filters*spatial + f*spatial + i;
+        sum += pow(x[index], 2);
+    }
+    sum = sqrt(sum);
+    if(sum == 0) sum = 1;
+    for(f = 0; f < filters; ++f){
+        int index = b*filters*spatial + f*spatial + i;
+        x[index] /= sum;
+        dx[index] = (1 - x[index]) / sum;
     }
 }
 __kernel void fast_mean_opencl(__global float *x, int batch, int filters, int spatial,__global float *mean)
 {
-    __local float loca[1024];
+    __local float loca[BLOCK];
 
     int id = get_local_id(0);
     loca[id] = 0;
@@ -652,7 +641,7 @@ __kernel void fast_mean_opencl(__global float *x, int batch, int filters, int sp
 
     int i, j;
     for(j = 0; j < batch; ++j){
-        for(i = 0; i < spatial; i += threads){
+        for(i = 0; i < spatial; i += BLOCK){
             int index = j*spatial*filters + filter*spatial + i + id;
             loca[id] += (i+id < spatial) ? x[index] : 0;
         }
@@ -662,7 +651,7 @@ __kernel void fast_mean_opencl(__global float *x, int batch, int filters, int sp
 
     if(id == 0){
         mean[filter] = 0;
-        for(i = 0; i < threads; ++i){
+        for(i = 0; i < BLOCK; ++i){
             mean[filter] += loca[i];
         }
         mean[filter] /= spatial * batch;
@@ -670,7 +659,7 @@ __kernel void fast_mean_opencl(__global float *x, int batch, int filters, int sp
 }
 __kernel void fast_variance_opencl(__global float *x,__global float *mean, int batch, int filters, int spatial,__global float *variance)
 {
-    __local float loca[1024];
+    __local float loca[BLOCK];
 
     int id = get_local_id(0);
     loca[id] = 0;
@@ -679,7 +668,7 @@ __kernel void fast_variance_opencl(__global float *x,__global float *mean, int b
 
     int i, j;
     for(j = 0; j < batch; ++j){
-        for(i = 0; i < spatial; i += threads){
+        for(i = 0; i < spatial; i += BLOCK){
             int index = j*spatial*filters + filter*spatial + i + id;
 
             loca[id] += (i+id < spatial) ? pow((x[index] - mean[filter]), 2) : 0;
@@ -688,7 +677,7 @@ __kernel void fast_variance_opencl(__global float *x,__global float *mean, int b
     barrier(CLK_LOCAL_MEM_FENCE);
     if(id == 0){
         variance[filter] = 0;
-        for(i = 0; i < threads; ++i){
+        for(i = 0; i < BLOCK; ++i){
             variance[filter] += loca[i];
         }
         variance[filter] /= (spatial * batch - 1);
@@ -697,10 +686,10 @@ __kernel void fast_variance_opencl(__global float *x,__global float *mean, int b
 __kernel void flatten_opencl(int N,__global float *x, int spatial, int layers, int batch, int forward, 
         __global float *out)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i >= N) return;
     int in_s = i%spatial;
     i = i/spatial;
@@ -716,27 +705,27 @@ __kernel void flatten_opencl(int N,__global float *x, int spatial, int layers, i
 }
 __kernel void mask_opencl(int n,__global float *x, float mask_num,__global float *mask, float val)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i < n && mask[i] == mask_num) x[i] = val;
 }
 __kernel void scale_mask_opencl(int n,__global float *x, float mask_num,__global float *mask, float scale)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i < n && mask[i] == mask_num) x[i] *= scale;
 }
 __kernel void shortcut_opencl(int size, int minw, int minh, int minc, int stride, int sample, int batch,
         int w1, int h1, int c1,__global float *add, int w2, int h2, int c2, float s1, float s2,__global float *out)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int id = x_+y_*m_+z_*m_*n_;
+    int id = (x_+y_*z_)*m_+n_;
     if (id >= size) return;
     int i = id % minw;
     id /= minw;
@@ -753,10 +742,10 @@ __kernel void shortcut_opencl(int size, int minw, int minh, int minc, int stride
 }
 __kernel void smooth_l1_opencl(int n,__global float *pred,__global float *truth,__global float *delta,__global float *error)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i < n){
         float diff = truth[i] - pred[i];
         float abs_val = fabs(diff);
@@ -772,10 +761,10 @@ __kernel void smooth_l1_opencl(int n,__global float *pred,__global float *truth,
 }
 __kernel void softmax_x_ent_opencl(int n,__global float *pred,__global float *truth,__global float *delta,__global float *error)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i < n){
         float t = truth[i];
         float p = pred[i];
@@ -785,10 +774,10 @@ __kernel void softmax_x_ent_opencl(int n,__global float *pred,__global float *tr
 }
 __kernel void logistic_x_ent_opencl(int n,__global float *pred,__global float *truth,__global float *delta,__global float *error)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i < n){
         float t = truth[i];
         float p = pred[i];
@@ -798,10 +787,10 @@ __kernel void logistic_x_ent_opencl(int n,__global float *pred,__global float *t
 }
 __kernel void l2_opencl(int n,__global float *pred,__global float *truth,__global float *delta,__global float *error)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i < n){
         float diff = truth[i] - pred[i];
         error[i] = diff * diff; //I know this is technically wrong, deal with it.
@@ -810,10 +799,10 @@ __kernel void l2_opencl(int n,__global float *pred,__global float *truth,__globa
 }
 __kernel void l1_opencl(int n,__global float *pred,__global float *truth,__global float *delta,__global float *error)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i < n){
         float diff = truth[i] - pred[i];
         error[i] = fabs(diff);
@@ -822,10 +811,10 @@ __kernel void l1_opencl(int n,__global float *pred,__global float *truth,__globa
 }
 __kernel void wgan_opencl(int n,__global float *pred,__global float *truth,__global float *delta,__global float *error)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i < n){
         error[i] = truth[i] ? -pred[i] : pred[i];
         delta[i] = (truth[i] > 0) ? 1 : -1;
@@ -833,20 +822,20 @@ __kernel void wgan_opencl(int n,__global float *pred,__global float *truth,__glo
 }
 __kernel void weighted_sum_opencl(int n,__global float *a,__global float *b,__global float *s,__global float *c)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i < n){
         c[i] = s[i]*a[i] + (1-s[i])*(b ? b[i] : 0);
     }
 }
 __kernel void deinter_opencl(int NX,__global float *X, int NY,__global float *Y, int B,__global float *OUT)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i < (NX+NY)*B){
         int b = i / (NX+NY);
         int j = i % (NX+NY);
@@ -859,10 +848,10 @@ __kernel void deinter_opencl(int NX,__global float *X, int NY,__global float *Y,
 }
 __kernel void inter_opencl(int NX,__global float *X, int NY,__global float *Y, int B,__global float *OUT)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i < (NX+NY)*B){
         int b = i / (NX+NY);
         int j = i % (NX+NY);
@@ -876,10 +865,10 @@ __kernel void inter_opencl(int NX,__global float *X, int NY,__global float *Y, i
 __kernel void weighted_delta_opencl(int n,__global float *a,__global float *b,__global float *s,
         __global float *da,__global float *db,__global float *ds,__global float *dc)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i < n){
         if(da) da[i] += dc[i] * s[i];
         if(db) db[i] += dc[i] * (1-s[i]);
@@ -888,10 +877,10 @@ __kernel void weighted_delta_opencl(int n,__global float *a,__global float *b,__
 }
 __kernel void mult_add_into_opencl(int n,__global float *a,__global float *b,__global float *c)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i < n){
         c[i] += a[i]*b[i];
     }
@@ -916,10 +905,10 @@ void softmax_device(__global float *input, int n, float temp, int stride,__globa
 }
 __kernel void softmax_tree_opencl(__global float *input, int spatial, int batch, int stride, float temp,__global float *output, int groups,__global int *group_size,__global int *group_offset)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int id = x_+y_*m_+z_*m_*n_;
+    int id = (x_+y_*z_)*m_+n_;
     if (id >= spatial*batch*groups) return;
     int s = id % spatial;
     id = id / spatial;
@@ -932,10 +921,10 @@ __kernel void softmax_tree_opencl(__global float *input, int spatial, int batch,
 __kernel void softmax_opencl(__global float *input, int n, int batch, int batch_offset, int groups, 
         int group_offset, int stride, float temp,__global float *output)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int id = x_+y_*m_+z_*m_*n_;
+    int id = (x_+y_*z_)*m_+n_;
     if (id >= batch*groups) return;
     int b = id / groups;
     int g = id % groups;
@@ -960,10 +949,10 @@ inline void AtomicAdd(volatile __global float *source, const float operand) {
 __kernel void upsample_opencl(int N,__global float *x, int w, int h, int c, int batch, int stride, 
         int forward, float scale,__global float *out)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if(i >= N) return;
     int out_index = i;
     int out_w = i%(w*stride);
@@ -987,11 +976,11 @@ __kernel void upsample_opencl(int N,__global float *x, int w, int h, int c, int 
 __kernel void col2im_opencl(int n,__global float *data_col,int height,int width,
         int ksize,int pad,int stride,int height_col,int width_col,__global float *data_im)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int index = x_+y_*m_+z_*m_*n_;
-    for(; index < n; index += m_*n_*k_){
+    int index = x_*m_+n_;
+    for(; index < n; index += m_*z_){
         float val = 0;
         int w = index % width + pad;
         int h = (index / width) % height + pad;
@@ -1016,19 +1005,19 @@ __kernel void col2im_opencl(int n,__global float *data_col,int height,int width,
 /////////////-----------------------convolutional_kernels.cu-----------------------------------////////////
 __kernel void binarize_opencl(__global float *x, int n,__global float *binary)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int i = x_+y_*m_+z_*m_*n_;
+    int i = (x_+y_*z_)*m_+n_;
     if (i >= n) return;
     binary[i] = (x[i] >= 0) ? 1 : -1;
 }
 __kernel void binarize_input_opencl(__global float *input, int n, int size,__global float *binary)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int s = x_+y_*m_+z_*m_*n_;
+    int s = (x_+y_*z_)*m_+n_;
     if (s >= size) return;
     int i = 0;
     float mean = 0;
@@ -1042,10 +1031,10 @@ __kernel void binarize_input_opencl(__global float *input, int n, int size,__glo
 }
 __kernel void binarize_weights_opencl(__global float *weights, int n, int size,__global float *binary)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int f = x_+y_*m_+z_*m_*n_;
+    int f = (x_+y_*z_)*m_+n_;
     if (f >= n) return;
     int i = 0;
     float mean = 0;
@@ -1060,10 +1049,10 @@ __kernel void binarize_weights_opencl(__global float *weights, int n, int size,_
 }
 __kernel void smooth_opencl(__global float *x, int n, int w, int h, int c, int size, float rate,__global float *delta)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int id = x_+y_*m_+z_*m_*n_;
+    int id = (x_+y_*z_)*m_+n_;
     if(id >= n) return;
 
     int j = id % w;
@@ -1095,10 +1084,10 @@ __kernel void smooth_opencl(__global float *x, int n, int w, int h, int c, int s
 __kernel void gemm_nn_opencl(int M,int N,int K,float ALPHA,__global float *weight,
         int lda,__global float *input,int ldb,__global float *output,int ldc)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int index = x_+y_*m_+z_*m_*n_;
+    int index = (x_+y_*z_)*m_+n_;
 
     if(index<M*ldc){
         int row = index / ldc;
@@ -1111,10 +1100,10 @@ __kernel void gemm_nn_opencl(int M,int N,int K,float ALPHA,__global float *weigh
 __kernel void gemm_nt_opencl(int M,int N,int K,float ALPHA,__global float *weight,
         int lda,__global float *input,int ldb,__global float *output,int ldc)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int index = x_+y_*m_+z_*m_*n_;
+    int index = (x_+y_*z_)*m_+n_;
 
     if(index<M*ldc){
         int row = index / ldc;
@@ -1129,10 +1118,10 @@ __kernel void gemm_nt_opencl(int M,int N,int K,float ALPHA,__global float *weigh
 __kernel void gemm_tn_opencl(int M,int N,int K,float ALPHA,__global float *weight,
         int lda,__global float *input,int ldb,__global float *output,int ldc)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int index = x_+y_*m_+z_*m_*n_;
+    int index = (x_+y_*z_)*m_+n_;
     if(index<M*ldc){
         int row = index / ldc;
         int col = index % ldc;
@@ -1147,10 +1136,10 @@ __kernel void gemm_tt_opencl(int M, int N, int K, float ALPHA,
         __global float *B, int ldb,
         __global float *C, int ldc)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int index = x_+y_*m_+z_*m_*n_;
+    int index = (x_+y_*z_)*m_+n_;
     return;/*
     for(i = 0; i < M; ++i){
         for(j = 0; j < N; ++j){
@@ -1166,11 +1155,11 @@ __kernel void gemm_tt_opencl(int M, int N, int K, float ALPHA,
 __kernel void im2col_opencl(int n,__global float *data_im,int height,int width,
         int ksize,int pad,int stride,int height_col,int width_col,__global float *data_col)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int index = x_+y_*m_+z_*m_*n_;
-    for(; index < n; index += m_*n_*k_){
+    int index = x_*m_+n_;
+    for(; index < n; index += m_*z_){
         int w_out = index % width_col;
         int h_index = index / width_col;
         int h_out = h_index % height_col;
@@ -1291,10 +1280,10 @@ float bilinear_interpolate_kernel(__global float *image, int w, int h, float x, 
 __kernel void levels_image_opencl(__global float *image,__global float *rand, int batch, int w, int h, int train, float saturation, float exposure, float translate, float scale, float shift)
 {
     int size = batch * w * h;
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int id = x_+y_*m_+z_*m_*n_;
+    int id = (x_+y_*z_)*m_+n_;
     if(id >= size) return;
     int x = id % w;
     id /= w;
@@ -1334,10 +1323,10 @@ __kernel void levels_image_opencl(__global float *image,__global float *rand, in
 
 __kernel void forward_crop_layer_opencl(__global float *input,__global float *rand, int size, int c, int h, int w, int crop_height, int crop_width, int train, int flip, float angle,__global float *output)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int id = x_+y_*m_+z_*m_*n_;
+    int id = (x_+y_*z_)*m_+n_;
     if(id >= size) return;
 
     float cx = w/2.f;
@@ -1381,23 +1370,23 @@ __kernel void forward_crop_layer_opencl(__global float *input,__global float *ra
 //-------------------------------------dropout_layer_kernels.cu-----------------------------------//
 __kernel void yoloswag420blazeit360noscope(__global float *input, int size,__global float *rand, float prob, float scale)
 {
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int id = x_+y_*m_+z_*m_*n_;
+    int id = (x_+y_*z_)*m_+n_;
     if(id < size) input[id] = (rand[id] < prob) ? 0 : input[id]*scale;
 }
-//--------------------------------------------------------------------------------------------------//
+//--------------------------------------maxpool_layer_kernels.cu----------------------------------//
 __kernel void forward_maxpool_layer_opencl(int n, int in_h, int in_w, int in_c, int stride, int size, int pad,__global float *input,__global float *output,__global int *indexes)
 {
     int h = (in_h + pad - size)/stride + 1;
     int w = (in_w + pad - size)/stride + 1;
     int c = in_c;
 
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int id = x_+y_*m_+z_*m_*n_;
+    int id = (x_+y_*z_)*m_+n_;
     if(id >= n) return;
 
     int j = id % w;
@@ -1438,10 +1427,10 @@ __kernel void backward_maxpool_layer_opencl(int n, int in_h, int in_w, int in_c,
     int c = in_c;
     int area = (size-1)/stride;
 
-    int x_=get_global_id(0),y_=get_global_id(1),z_=get_global_id(2);
-    int m_=get_global_size(0),n_=get_global_size(1),k_=get_global_size(2);
+    int x_=get_group_id(0),y_=get_group_id(1),z_=get_num_groups(0);
+    int m_=get_local_size(0),n_=get_local_id(0);
 
-    int id = x_+y_*m_+z_*m_*n_;
+    int id = (x_+y_*z_)*m_+n_;
     if(id >= n) return;
 
     int index = id;

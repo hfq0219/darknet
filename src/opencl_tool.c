@@ -83,46 +83,25 @@ void clean(cl_context *context,cl_command_queue *commandQueue,cl_program *progra
         clReleaseContext(*context);
 }
 
-void setWorkItemSize(int kernel_num,size_t global_work_size[3],size_t local_work_size[3]){
-    extern int CL_BLOCK;
-    local_work_size[0]=CL_BLOCK;
-    local_work_size[1]=CL_BLOCK;
-    local_work_size[2]=1;
-    if(kernel_num>1024*1024*64){
-        fprintf(stderr,"\nkernel nums too large!!!\n");
-        exit(-1);
+void setWorkItemSize(size_t n,size_t global_work_size[3],size_t local_work_size[3]){
+
+    local_work_size[0] = BLOCK;
+    local_work_size[1] = 1;
+    local_work_size[2] = 1;
+
+    size_t k = (n-1) / BLOCK + 1;
+    size_t x = k;
+    size_t y = 1;
+    if(x > 65535){
+        x = ceil(sqrt(k));
+        y = (n-1)/(x*BLOCK) + 1;
     }
-    if(kernel_num>1024*1024){
-        int dim0=1024;
-        int dim1=1024;
-        int dim2=(kernel_num-1)/(1024*1024)+1;
-        global_work_size[0]=dim0;
-        global_work_size[1]=dim1;
-        global_work_size[2]=dim2;
-        //fprintf(stderr,"\na %d,%d,%d\n",dim0,dim1,dim2);
-        return;
-    }
-    else if(kernel_num>1024*CL_BLOCK){
-        int dim0=1024;
-        int dim1=((kernel_num-1)/(1024*CL_BLOCK)+1)*CL_BLOCK;
-        global_work_size[0]=dim0;
-        global_work_size[1]=dim1;
-        global_work_size[2]=1;
-        //fprintf(stderr,"\nb %d,%d,%d\n",dim0,dim1,1);
-        return;
-    }
-    else{
-        int dim0=((kernel_num-1)/(CL_BLOCK*CL_BLOCK)+1)*CL_BLOCK;
-        global_work_size[0]=dim0;
-        global_work_size[1]=CL_BLOCK;
-        global_work_size[2]=1;
-        //fprintf(stderr,"\nc %d,%d,%d\n",dim0,1,1);
-        return;
-    }
+    global_work_size[0] = x*BLOCK;
+    global_work_size[1] = y;
+    global_work_size[2] = 1;
 }
 
 void cl_error(cl_int err,char * funName){
-    clReleaseKernel(*clKernel);
     if(err!=CL_SUCCESS){
         fprintf(stderr,funName);
         fprintf(stderr,": opencl error: %d, ",err);

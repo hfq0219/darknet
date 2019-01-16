@@ -193,6 +193,7 @@ void gemm_cl(int TA, int TB, int M, int N, int K, float ALPHA,
         cl_mem C, int ldc)
 {
     scal_cl(M*N,BETA,C,1);
+    
     if(!TA && !TB)
         gemm_xx_cl(M, N, K, ALPHA,A,lda, B, ldb,C,ldc,"gemm_nn_opencl");
     else if(TA && !TB)
