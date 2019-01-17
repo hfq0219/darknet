@@ -382,7 +382,6 @@ void forward_deconvolutional_layer_cl(layer l, network net)
         gemm_cl(1,0,m,n,k,1,a,m,b,n,0,c,n);
 
         clEnqueueCopyBuffer(*clCommandQueue,l.output_cl,tmp_output,sizeof(float)*i*l.outputs,0,sizeof(float)*l.outputs,0,NULL,NULL);
-        //col2im_cl(net.workspace_cl, l.out_c, l.out_h, l.out_w, l.size, l.stride, l.pad, l.output_cl+i*l.outputs);
         col2im_cl(net.workspace_cl, l.out_c, l.out_h, l.out_w, l.size, l.stride, l.pad, tmp_output);
         clEnqueueCopyBuffer(*clCommandQueue,tmp_output,l.output_cl,0,sizeof(float)*i*l.outputs,sizeof(float)*l.outputs,0,NULL,NULL);
     }
@@ -424,7 +423,6 @@ void backward_deconvolutional_layer_cl(layer l, network net)
 
         cl_mem tmp_delta = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.outputs, NULL, NULL);
         clEnqueueCopyBuffer(*clCommandQueue,l.delta_cl,tmp_delta,sizeof(float)*i*l.outputs,0,sizeof(float)*l.outputs,0,NULL,NULL);
-        //im2col_cl(l.delta_cl/* + i*l.outputs*/, l.out_c, l.out_h, l.out_w, l.size, l.stride, l.pad, b);
         im2col_cl(tmp_delta, l.out_c, l.out_h, l.out_w, l.size, l.stride, l.pad, b);
         gemm_cl(0,1,m,n,k,1,a,k,b,k,1,c,n);
         cl_free(a);

@@ -389,22 +389,24 @@ void forward_yolo_layer_cl(const layer l, network net)
 {
     copy_cl(l.batch*l.inputs, net.input_cl, 1, l.output_cl, 1);
     int b, n;
+    cl_mem tmp = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*2*l.w*l.h, NULL, NULL);
+    cl_mem tmp2 = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*(1+l.classes)*l.w*l.h, NULL, NULL);
     for (b = 0; b < l.batch; ++b){
         for(n = 0; n < l.n; ++n){
             int index = entry_index(l, b, n*l.w*l.h, 0);
-            cl_mem tmp = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*2*l.w*l.h, NULL, NULL);
+            
             clEnqueueCopyBuffer(*clCommandQueue,l.output_cl,tmp,sizeof(float)*index,0,sizeof(float)*2*l.w*l.h,0,NULL,NULL);
             activate_array_cl(tmp, 2*l.w*l.h, LOGISTIC);
             clEnqueueCopyBuffer(*clCommandQueue,tmp,l.output_cl,0,sizeof(float)*index,sizeof(float)*2*l.w*l.h,0,NULL,NULL);
             index = entry_index(l, b, n*l.w*l.h, 4);
-            cl_mem tmp2 = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*(1+l.classes)*l.w*l.h, NULL, NULL);
+            
             clEnqueueCopyBuffer(*clCommandQueue,l.output_cl,tmp2,sizeof(float)*index,0,sizeof(float)*(1+l.classes)*l.w*l.h,0,NULL,NULL);
             activate_array_cl(tmp2, (1+l.classes)*l.w*l.h, LOGISTIC);
             clEnqueueCopyBuffer(*clCommandQueue,tmp2,l.output_cl,0,sizeof(float)*index,sizeof(float)*(1+l.classes)*l.w*l.h,0,NULL,NULL);
-            cl_free(tmp);
-            cl_free(tmp2);
         }
     }
+    cl_free(tmp);
+    cl_free(tmp2);
     if(!net.train || l.onlyforward){
         cl_pull_array(l.output_cl, l.output, l.batch*l.outputs);
         return;
