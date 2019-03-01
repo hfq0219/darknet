@@ -242,7 +242,7 @@ void forward_iseg_layer_cl(const layer l, network net)
     copy_cl(l.batch*l.inputs, net.input_cl, 1, l.output_cl, 1);
     int b;
     for (b = 0; b < l.batch; ++b){
-        activate_array_cl(l.output_cl /*+ b*l.outputs*/, l.classes*l.w*l.h, LOGISTIC);
+        activate_array_cl(clShiftMem(l.output_cl,b*l.outputs), l.classes*l.w*l.h, LOGISTIC);
         //if(l.extra) activate_array_gpu(l.output_gpu + b*l.outputs + l.classes*l.w*l.h, l.extra*l.w*l.h, LOGISTIC);
     }
 

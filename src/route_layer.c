@@ -153,16 +153,9 @@ void forward_route_layer_cl(const route_layer l, network net)
         int index = l.input_layers[i];
         cl_mem input = net.layers[index].output_cl;
         int input_size = l.input_sizes[i];
-        cl_mem tmp = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*input_size, NULL, NULL);
-        cl_mem out = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*input_size, NULL, NULL);
         for(j = 0; j < l.batch; ++j){
-            clEnqueueCopyBuffer(*clCommandQueue,input,tmp,sizeof(float)*j*input_size,0,sizeof(float)*input_size,0,NULL,NULL);
-            clEnqueueCopyBuffer(*clCommandQueue,l.output_cl,out,sizeof(float)*(j*l.outputs+offset),0,sizeof(float)*l.outputs,0,NULL,NULL);
-            copy_cl(input_size, tmp, 1, out, 1);
-            clEnqueueCopyBuffer(*clCommandQueue,out,l.output_cl,0,sizeof(float)*(j*l.outputs+offset),sizeof(float)*l.outputs,0,NULL,NULL);
+            copy_cl(input_size, clShiftMem(input,j*input_size), 1, clShiftMem(l.output_cl,j*l.outputs+offset), 1);
         }
-        cl_free(tmp);
-        cl_free(out);
         offset += input_size;
     }
 }
@@ -175,16 +168,9 @@ void backward_route_layer_cl(const route_layer l, network net)
         int index = l.input_layers[i];
         cl_mem delta = net.layers[index].delta_cl;
         int input_size = l.input_sizes[i];
-        cl_mem tmp = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*input_size, NULL, NULL);
-        cl_mem out = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*input_size, NULL, NULL);
         for(j = 0; j < l.batch; ++j){
-            clEnqueueCopyBuffer(*clCommandQueue,delta,tmp,sizeof(float)*j*input_size,0,sizeof(float)*input_size,0,NULL,NULL);
-            clEnqueueCopyBuffer(*clCommandQueue,l.delta_cl,out,sizeof(float)*(j*l.outputs+offset),0,sizeof(float)*l.outputs,0,NULL,NULL);
-            axpy_cl(input_size, 1, out, 1, tmp, 1);
-            clEnqueueCopyBuffer(*clCommandQueue,tmp,delta,0,sizeof(float)*j*input_size,sizeof(float)*input_size,0,NULL,NULL);
+            axpy_cl(input_size, 1, clShiftMem(l.delta_cl,j*l.outputs+offset), 1, clShiftMem(delta,j*input_size), 1);
         }
-        cl_free(tmp);
-        cl_free(out);
         offset += input_size;
     }
 }

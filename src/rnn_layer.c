@@ -25,11 +25,10 @@ static void increment_layer(layer *l, int steps)
     l->x_norm_gpu += num;
 #endif
 #ifdef OPENCL
-    /*l->output_cl += num;
-    l->delta_cl += num;
-    l->x_cl += num;
-    l->x_norm_cl += num; 
-    */
+    l->output_cl = clShiftMem(l->output_cl,num);
+    l->delta_cl = clShiftMem(l->delta_cl,num);
+    l->x_cl = clShiftMem(l->x_cl,num);
+    l->x_norm_cl = clShiftMem(l->x_norm_cl,num);
 #endif
 }
 
@@ -362,7 +361,7 @@ void forward_rnn_layer_cl(layer l, network net)
         s.input_cl = l.state_cl;
         forward_connected_layer_cl(output_layer, s);
 
-        //net.input_cl += l.inputs*l.batch;
+        net.input_cl = clShiftMem(net.input_cl,l.inputs*l.batch);
         increment_layer(&input_layer, 1);
         increment_layer(&self_layer, 1);
         increment_layer(&output_layer, 1);
@@ -393,8 +392,8 @@ void backward_rnn_layer_cl(layer l, network net)
 
         if(i != 0) {
             fill_cl(l.outputs * l.batch, 0, l.state_cl, 1);
-            axpy_cl(l.outputs * l.batch, 1, input_layer.output_cl /*- l.outputs*l.batch*/, 1, l.state_cl, 1);
-            axpy_cl(l.outputs * l.batch, 1, self_layer.output_cl /*- l.outputs*l.batch*/, 1, l.state_cl, 1);
+            axpy_cl(l.outputs * l.batch, 1, clShiftMem(input_layer.output_cl,-l.outputs*l.batch), 1, l.state_cl, 1);
+            axpy_cl(l.outputs * l.batch, 1, clShiftMem(self_layer.output_cl,-l.outputs*l.batch), 1, l.state_cl, 1);
         }else {
             copy_cl(l.outputs*l.batch, l.prev_state_cl, 1, l.state_cl, 1);
         }
@@ -402,12 +401,12 @@ void backward_rnn_layer_cl(layer l, network net)
         copy_cl(l.outputs*l.batch, self_layer.delta_cl, 1, input_layer.delta_cl, 1);
 
         s.input_cl = l.state_cl;
-        s.delta_cl = (i > 0) ? self_layer.delta_cl /*- l.outputs*l.batch*/ : 0;
+        s.delta_cl = (i > 0) ? clShiftMem(self_layer.delta_cl,-l.outputs*l.batch) : 0;
         if (i == 0) s.delta_cl = 0;
         backward_connected_layer_cl(self_layer, s);
 
-        s.input_cl = net.input_cl /*+ i*l.inputs*l.batch*/;
-        if(net.delta_cl) s.delta_cl = net.delta_cl /*+ i*l.inputs*l.batch*/;
+        s.input_cl = clShiftMem(net.input_cl,i*l.inputs*l.batch);
+        if(net.delta_cl) s.delta_cl = clShiftMem(net.delta_cl,i*l.inputs*l.batch);
         else s.delta_cl = 0;
         backward_connected_layer_cl(input_layer, s);
 

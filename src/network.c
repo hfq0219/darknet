@@ -82,10 +82,10 @@ void reset_network_state(network *net, int b)
         #ifdef OPENCL
         layer l = net->layers[i];
         if(l.state_cl){
-            fill_cl(l.outputs, 0, l.state_cl /*+ l.outputs*b*/, 1);
+            fill_cl(l.outputs, 0, clShiftMem(l.state_cl,l.outputs*b), 1);
         }
         if(l.h_cl){
-            fill_cl(l.outputs, 0, l.h_cl /*+ l.outputs*b*/, 1);
+            fill_cl(l.outputs, 0, clShiftMem(l.h_cl,l.outputs*b), 1);
         }
         #endif
     }

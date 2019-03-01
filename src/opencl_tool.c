@@ -5,7 +5,35 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <time.h>
-extern cl_kernel *clKernel;
+
+int createProgramWithBinary(cl_device_id *device,cl_context *context,cl_program *program,char *file){
+    FILE *fp=fopen(file,"rb");
+    if(fp==NULL) return -1;
+    size_t size;
+    fseek(fp,0,SEEK_END);
+    size=ftell(fp);
+    rewind(fp);
+    
+    unsigned char *bin=malloc(sizeof(unsigned char)*size);
+    fread(bin,1,size,fp);
+    fclose(fp);
+    cl_int err;
+    *program=clCreateProgramWithBinary(*context,1,device,&size,(const unsigned char**)&bin,NULL,&err);
+    free(bin);
+    if(err!=CL_SUCCESS){
+        fprintf(stderr,"can't build binary.\n");
+        return -1;
+    }
+    err=clBuildProgram(*program,0,NULL,NULL,NULL,NULL);
+    if(err!=CL_SUCCESS){
+        fprintf(stderr,"can't build program.\n");
+        char buildLog[16384];
+        clGetProgramBuildInfo(*program,*device,CL_PROGRAM_BUILD_LOG,sizeof(buildLog),buildLog,NULL);
+        fprintf(stderr,buildLog);
+        return -1;
+    }
+    return 0;
+}
 /**创建平台、设备、上下文、命令队列、程序对象,对大部分 OpenCL 程序相同。
  */
 int CreateTool(cl_platform_id *platform,cl_device_id *device,cl_context *context,
@@ -39,6 +67,17 @@ int CreateTool(cl_platform_id *platform,cl_device_id *device,cl_context *context
         fprintf(stderr,"no commandQueue.");
         return -1;
     }
+    /*
+    *使用二进制内核文件可以节省时间
+    */
+    char *file=malloc(sizeof(char)*1024);
+    strcpy(file,fileName);
+    strcat(file,".bin");
+    int r=createProgramWithBinary(device,context,program,file);
+    if(r==0){
+        fprintf(stderr,"build with binary.\n");
+        return 0;
+    }
     //读取内核文件并转换为字符串
     FILE *kernelFile;
     kernelFile=fopen(fileName,"r");
@@ -68,6 +107,25 @@ int CreateTool(cl_platform_id *platform,cl_device_id *device,cl_context *context
         fprintf(stderr,buildLog);
         return -1;
     }
+    size_t size;
+    err=clGetProgramInfo(*program,CL_PROGRAM_BINARY_SIZES,sizeof(size_t),&size,NULL);
+    if(err!=CL_SUCCESS){
+        fprintf(stderr,"error query binary.\n");
+        return -1;
+    }
+    unsigned char **bin=malloc(sizeof(unsigned char*));
+    bin[0]=malloc(sizeof(unsigned char)*size);
+    err=clGetProgramInfo(*program,CL_PROGRAM_BINARIES,sizeof(unsigned char*),bin,NULL);
+    if(err!=CL_SUCCESS){
+        fprintf(stderr,"error query\n");
+        return -1;
+    }
+    FILE *fp=fopen(file,"wb");
+    fwrite(bin[0],1,size,fp);
+    fclose(fp);
+    free(bin[0]);
+    free(bin);
+    fprintf(stderr,"build with source.\n");
     return 0;
 }
 //资源释放
@@ -103,8 +161,7 @@ void setWorkItemSize(size_t n,size_t global_work_size[3],size_t local_work_size[
 
 void cl_error(cl_int err,char * funName){
     if(err!=CL_SUCCESS){
-        fprintf(stderr,funName);
-        fprintf(stderr,": opencl error: %d, ",err);
+        fprintf(stderr,funName,": opencl error: %d, ",err);
         switch(err){
             case -1:fprintf(stderr,"CL_DEVICE_NOT_FOUND\n");break;
             case -2:fprintf(stderr,"CL_DEVICE_NOT_AVAILABLE\n");break;
@@ -229,3 +286,13 @@ float cl_mag_array(cl_mem x_cl, size_t n)
     return m;
 }
 
+cl_mem clShiftMem(cl_mem src,int size){
+    cl_int err;
+    size_t globalSize[1]={1},localSize[1]={1};
+    *clKernel=clCreateKernel(*clProgram, "shiftMem_opencl", &err);
+    err|=clSetKernelArg(*clKernel, 0, sizeof(cl_mem), &src);
+    err|=clSetKernelArg(*clKernel, 1, sizeof(cl_int), &size);
+    err|=clEnqueueNDRangeKernel(*clCommandQueue, *clKernel, 1, NULL, globalSize, localSize, 0, NULL, NULL);
+    cl_error(err,"shift_mem_cl");
+    return src;
+}

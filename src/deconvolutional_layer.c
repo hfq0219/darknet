@@ -372,21 +372,15 @@ void forward_deconvolutional_layer_cl(layer l, network net)
 
     fill_cl(l.outputs*l.batch, 0, l.output_cl, 1);
 
-    cl_mem tmp_output=clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.outputs, NULL, NULL);
-    cl_mem b = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.c*l.h*l.w, NULL, NULL);
     for(i = 0; i < l.batch; ++i){
         cl_mem a = l.weights_cl;
-        clEnqueueCopyBuffer(*clCommandQueue,net.input_cl,b,sizeof(float)*i*l.c*l.h*l.w,0,sizeof(float)*l.c*l.h*l.w,0,NULL,NULL);
+        cl_mem b = clShiftMem(net.input_cl,i*l.c*l.h*l.w);
         cl_mem c = net.workspace_cl;
 
         gemm_cl(1,0,m,n,k,1,a,m,b,n,0,c,n);
 
-        clEnqueueCopyBuffer(*clCommandQueue,l.output_cl,tmp_output,sizeof(float)*i*l.outputs,0,sizeof(float)*l.outputs,0,NULL,NULL);
-        col2im_cl(net.workspace_cl, l.out_c, l.out_h, l.out_w, l.size, l.stride, l.pad, tmp_output);
-        clEnqueueCopyBuffer(*clCommandQueue,tmp_output,l.output_cl,0,sizeof(float)*i*l.outputs,sizeof(float)*l.outputs,0,NULL,NULL);
+        col2im_cl(net.workspace_cl, l.out_c, l.out_h, l.out_w, l.size, l.stride, l.pad, clShiftMem(l.output_cl,i*l.outputs));
     }
-    cl_free(b);
-    cl_free(tmp_output);
 
     if (l.batch_normalize) {
         forward_batchnorm_layer_cl(l, net);
@@ -416,30 +410,23 @@ void backward_deconvolutional_layer_cl(layer l, network net)
         int n = l.size*l.size*l.n;
         int k = l.h*l.w;
 
-        cl_mem a = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*m*k, NULL, NULL);
-        clEnqueueCopyBuffer(*clCommandQueue,net.input_cl,a,sizeof(float)*i*m*k,0,sizeof(float)*m*k,0,NULL,NULL);
+        cl_mem a = clShiftMem(net.input_cl,i*m*k);
         cl_mem b = net.workspace_cl;
         cl_mem c = l.weight_updates_cl;
 
-        cl_mem tmp_delta = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.outputs, NULL, NULL);
-        clEnqueueCopyBuffer(*clCommandQueue,l.delta_cl,tmp_delta,sizeof(float)*i*l.outputs,0,sizeof(float)*l.outputs,0,NULL,NULL);
-        im2col_cl(tmp_delta, l.out_c, l.out_h, l.out_w, l.size, l.stride, l.pad, b);
+        im2col_cl(clShiftMem(l.delta_cl,i*l.outputs), l.out_c, l.out_h, l.out_w, l.size, l.stride, l.pad, b);
         gemm_cl(0,1,m,n,k,1,a,k,b,k,1,c,n);
-        cl_free(a);
-        cl_free(tmp_delta);
+
         if(net.delta_cl){
             int m = l.c;
             int n = l.h*l.w;
             int k = l.size*l.size*l.n;
 
-            cl_mem a = l.weights_cl;
-            cl_mem b = net.workspace_cl;
-            cl_mem c = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*m*n, NULL, NULL);
-            clEnqueueCopyBuffer(*clCommandQueue,net.delta_cl,c,sizeof(float)*i*m*n,0,sizeof(float)*m*n,0,NULL,NULL);
+            a = l.weights_cl;
+            b = net.workspace_cl;
+            c = clShiftMem(net.delta_cl,i*m*n);
 
             gemm_cl(0,0,m,n,k,1,a,k,b,n,1,c,n);
-            clEnqueueCopyBuffer(*clCommandQueue,c,net.delta_cl,0,sizeof(float)*i*m*n,sizeof(float)*m*n,0,NULL,NULL);
-            cl_free(c);
         }
     }
 }

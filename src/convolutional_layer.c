@@ -751,24 +751,16 @@ void forward_convolutional_layer_cl(convolutional_layer l, network net)
     int n = l.out_w*l.out_h;
     for(i = 0; i < l.batch; ++i){
         for(j = 0; j < l.groups; ++j){
-            cl_mem a = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.nweights/l.groups, NULL, NULL);
-            clEnqueueCopyBuffer(*clCommandQueue,l.weights_cl,a,sizeof(float)*j*l.nweights/l.groups,0,sizeof(float)*l.nweights/l.groups,0,NULL,NULL);
+            cl_mem a=clShiftMem(l.weights_cl,j*l.nweights/l.groups);
             cl_mem b = net.workspace_cl;
-            cl_mem c = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*n*m, NULL, NULL);
-            clEnqueueCopyBuffer(*clCommandQueue,l.output_cl,c,sizeof(float)*(i*l.groups + j)*n*m,0,sizeof(float)*n*m,0,NULL,NULL);
-            cl_mem im = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.c/l.groups*l.h*l.w, NULL, NULL);
-            clEnqueueCopyBuffer(*clCommandQueue,net.input_cl,im,sizeof(float)*(i*l.groups + j)*l.c/l.groups*l.h*l.w,0,sizeof(float)*l.c/l.groups*l.h*l.w,0,NULL,NULL);
-
+            cl_mem c=clShiftMem(l.output_cl,(i*l.groups + j)*n*m);
+            cl_mem im=clShiftMem(net.input_cl,(i*l.groups + j)*l.c/l.groups*l.h*l.w);
             if (l.size == 1){
                 b = im;
             } else {
                 im2col_cl(im, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, b);
             }
             gemm_cl(0,0,m,n,k,1,a,k,b,n,1,c,n);
-            clEnqueueCopyBuffer(*clCommandQueue,c,l.output_cl,0,sizeof(float)*(i*l.groups + j)*n*m,sizeof(float)*n*m,0,NULL,NULL);
-            cl_free(a);
-            cl_free(c);
-            cl_free(im);
         }
     }
 
@@ -829,27 +821,21 @@ void backward_convolutional_layer_cl(convolutional_layer l, network net)
     int i, j;
     for(i = 0; i < l.batch; ++i){
         for(j = 0; j < l.groups; ++j){
-            cl_mem a = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*m*k, NULL, NULL);
-            clEnqueueCopyBuffer(*clCommandQueue,l.delta_cl,a,sizeof(float)*(i*l.groups + j)*m*k,0,sizeof(float)*m*k,0,NULL,NULL);
+            cl_mem a = clShiftMem(l.delta_cl,(i*l.groups + j)*m*k);
             cl_mem b = net.workspace_cl;
-            cl_mem c = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.nweights/l.groups, NULL, NULL);
-            clEnqueueCopyBuffer(*clCommandQueue,l.weight_updates_cl,c,sizeof(float)*j*l.nweights/l.groups,0,sizeof(float)*l.nweights/l.groups,0,NULL,NULL);
-            cl_mem im = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.c/l.groups*l.h*l.w, NULL, NULL);
-            clEnqueueCopyBuffer(*clCommandQueue,net.input_cl,im,sizeof(float)*(i*l.groups + j)*l.c/l.groups*l.h*l.w,0,sizeof(float)*l.c/l.groups*l.h*l.w,0,NULL,NULL);
-            cl_mem imd = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.c/l.groups*l.h*l.w, NULL, NULL);
-            clEnqueueCopyBuffer(*clCommandQueue,net.delta_cl,imd,sizeof(float)*(i*l.groups + j)*l.c/l.groups*l.h*l.w,0,sizeof(float)*l.c/l.groups*l.h*l.w,0,NULL,NULL);
+            cl_mem c = clShiftMem(l.weight_updates_cl,j*l.nweights/l.groups);
+            
+            cl_mem im = clShiftMem(net.input_cl,(i*l.groups + j)*l.c/l.groups*l.h*l.w);
+            cl_mem imd = clShiftMem(net.delta_cl,(i*l.groups + j)*l.c/l.groups*l.h*l.w);
 
             im2col_cl(im, l.c/l.groups, l.h, l.w, l.size, l.stride, l.pad, b);
             gemm_cl(0,1,m,n,k,1,a,k,b,k,1,c,n);
-            cl_free(a);
-            cl_free(c);
+            
             if (net.delta_cl) {
                 if (l.binary || l.xnor) swap_binary(&l);
-                cl_mem a = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.nweights/l.groups, NULL, NULL);
-                clEnqueueCopyBuffer(*clCommandQueue,l.weights_cl,a,sizeof(float)*j*l.nweights/l.groups,0,sizeof(float)*l.nweights/l.groups,0,NULL,NULL);
-                cl_mem b = clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*m*k, NULL, NULL);
-                clEnqueueCopyBuffer(*clCommandQueue,l.delta_cl,b,sizeof(float)*(i*l.groups + j)*m*k,0,sizeof(float)*m*k,0,NULL,NULL);
-                cl_mem c = net.workspace_cl;
+                a = clShiftMem(l.weights_cl,j*l.nweights/l.groups);
+                b = clShiftMem(l.delta_cl,(i*l.groups + j)*m*k);
+                c = net.workspace_cl;
                 if (l.size == 1) {
                     c = imd;
                 }
@@ -862,23 +848,10 @@ void backward_convolutional_layer_cl(convolutional_layer l, network net)
                 if(l.binary || l.xnor) {
                     swap_binary(&l);
                 }
-                cl_free(a);
-                cl_free(b);
             }
             if(l.xnor){
-                cl_mem tmp_input=clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.c*l.h*l.w, NULL, NULL);
-                cl_mem tmp_delta=clCreateBuffer(*clContext, CL_MEM_READ_WRITE, sizeof(float)*l.c*l.h*l.w, NULL, NULL);
-                clEnqueueCopyBuffer(*clCommandQueue,original_input,tmp_input,sizeof(float)*i*l.c*l.h*l.w,0,sizeof(float)*l.c*l.h*l.w,0,NULL,NULL);
-                clEnqueueCopyBuffer(*clCommandQueue,net.delta_cl,tmp_delta,sizeof(float)*i*l.c*l.h*l.w,0,sizeof(float)*l.c*l.h*l.w,0,NULL,NULL);
-                //gradient_array_cl(original_input /*+ i*l.c*l.h*l.w*/, l.c*l.h*l.w, HARDTAN, net.delta_cl /*+ i*l.c*l.h*l.w*/);
-                gradient_array_cl(tmp_input,l.c*l.h*l.w,HARDTAN,tmp_delta);
-                clEnqueueCopyBuffer(*clCommandQueue,tmp_input,original_input,0,sizeof(float)*i*l.c*l.h*l.w,sizeof(float)*l.c*l.h*l.w,0,NULL,NULL);
-                clEnqueueCopyBuffer(*clCommandQueue,tmp_delta,net.delta_cl,0,sizeof(float)*i*l.c*l.h*l.w,sizeof(float)*l.c*l.h*l.w,0,NULL,NULL);
-                cl_free(tmp_input);
-                cl_free(tmp_delta);
+                gradient_array_cl(clShiftMem(original_input,i*l.c*l.h*l.w),l.c*l.h*l.w,HARDTAN,clShiftMem(net.delta_cl,l.c*l.h*l.w));
             }
-            cl_free(im);
-            cl_free(imd);
         }
     }
 }

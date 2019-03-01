@@ -25,14 +25,10 @@ static void increment_layer(layer *l, int steps)
     l->x_norm_gpu += num;
 #endif
 #ifdef OPENCL
-    clEnqueueCopyBuffer(*clCommandQueue,l->output_cl,l->output_cl,sizeof(float)*num,0,sizeof(float)*num,0,NULL,NULL);
-    clEnqueueCopyBuffer(*clCommandQueue,l->delta_cl,l->delta_cl,sizeof(float)*num,0,sizeof(float)*num,0,NULL,NULL);
-    clEnqueueCopyBuffer(*clCommandQueue,l->x_cl,l->x_cl,sizeof(float)*num,0,sizeof(float)*num,0,NULL,NULL);
-    clEnqueueCopyBuffer(*clCommandQueue,l->x_norm_cl,l->x_norm_cl,sizeof(float)*num,0,sizeof(float)*num,0,NULL,NULL);
-    //l->output_cl += num;
-    //l->delta_cl += num;
-    //l->x_cl += num;
-    //l->x_norm_cl += num;
+    l->output_cl = clShiftMem(l->output_cl,num);
+    l->delta_cl = clShiftMem(l->delta_cl,num);;
+    l->x_cl = clShiftMem(l->x_cl,num);
+    l->x_norm_cl = clShiftMem(l->x_norm_cl,num);
 #endif
 }
 
@@ -344,7 +340,7 @@ void forward_crnn_layer_cl(layer l, network net)
         forward_convolutional_layer_cl(self_layer, s);
 
         cl_mem old_state = l.state_cl;
-        if(net.train) /*l.state_cl += l.hidden*l.batch*/;
+        if(net.train) l.state_cl = clShiftMem(l.state_cl,l.hidden*l.batch);
         if(l.shortcut){
             copy_cl(l.hidden * l.batch, old_state, 1, l.state_cl, 1);
         }else{
@@ -356,7 +352,7 @@ void forward_crnn_layer_cl(layer l, network net)
         s.input_cl = l.state_cl;
         forward_convolutional_layer_cl(output_layer, s);
 
-        /*net.input_cl += l.inputs*l.batch*/;
+        net.input_cl = clShiftMem(net.input_cl,l.inputs*l.batch);
         increment_layer(&input_layer, 1);
         increment_layer(&self_layer, 1);
         increment_layer(&output_layer, 1);
@@ -374,7 +370,7 @@ void backward_crnn_layer_cl(layer l, network net)
     increment_layer(&input_layer,  l.steps - 1);
     increment_layer(&self_layer,   l.steps - 1);
     increment_layer(&output_layer, l.steps - 1);
-    /*l.state_cl += l.hidden*l.batch*l.steps*/;
+    l.state_cl = clShiftMem(l.state_cl,l.hidden*l.batch*l.steps);
     for (i = l.steps-1; i >= 0; --i) {
         copy_cl(l.hidden * l.batch, input_layer.output_cl, 1, l.state_cl, 1);
         axpy_cl(l.hidden * l.batch, 1, self_layer.output_cl, 1, l.state_cl, 1);
@@ -383,17 +379,17 @@ void backward_crnn_layer_cl(layer l, network net)
         s.delta_cl = self_layer.delta_cl;
         backward_convolutional_layer_cl(output_layer, s);
 
-        /*l.state_cl -= l.hidden*l.batch*/;
+        l.state_cl = clShiftMem(l.state_cl,-l.hidden*l.batch);
 
         s.input_cl = l.state_cl;
-        s.delta_cl = self_layer.delta_cl /*- l.hidden*l.batch*/;
+        s.delta_cl = clShiftMem(self_layer.delta_cl,-l.hidden*l.batch);
         if (i == 0) s.delta_cl = 0;
         backward_convolutional_layer_cl(self_layer, s);
 
         copy_cl(l.hidden*l.batch, self_layer.delta_cl, 1, input_layer.delta_cl, 1);
-        if (i > 0 && l.shortcut) axpy_cl(l.hidden*l.batch, 1, self_layer.delta_cl, 1, self_layer.delta_cl /*- l.hidden*l.batch*/, 1);
-        s.input_cl = net.input_cl /*+ i*l.inputs*l.batch*/;
-        if(net.delta_cl) s.delta_cl = net.delta_cl /*+ i*l.inputs*l.batch*/;
+        if (i > 0 && l.shortcut) axpy_cl(l.hidden*l.batch, 1, self_layer.delta_cl, 1, clShiftMem(self_layer.delta_cl,-l.hidden*l.batch), 1);
+        s.input_cl = clShiftMem(net.input_cl,i*l.inputs*l.batch);
+        if(net.delta_cl) s.delta_cl = clShiftMem(net.delta_cl,i*l.inputs*l.batch);
         else s.delta_cl = 0;
         backward_convolutional_layer_cl(input_layer, s);
 

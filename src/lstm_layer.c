@@ -25,10 +25,10 @@ static void increment_layer(layer *l, int steps)
     l->x_norm_gpu += num;
 #endif
 #ifdef OPENCL
-    /*l->output_cl += num;
-    l->delta_cl += num;
-    l->x_cl += num;
-    l->x_norm_cl += num;*/
+    l->output_cl = clShiftMem(l->output_cl,num);
+    l->delta_cl = clShiftMem(l->delta_cl,num);
+    l->x_cl = clShiftMem(l->x_cl,num);
+    l->x_norm_cl = clShiftMem(l->x_norm_cl,num);
 #endif
 }
 
@@ -736,9 +736,9 @@ void forward_lstm_layer_cl(layer l, network state)
         copy_cl(l.outputs*l.batch, l.c_cl, 1, l.cell_cl, 1);		
         copy_cl(l.outputs*l.batch, l.h_cl, 1, l.output_cl, 1);
 
-        /*state.input_cl += l.inputs*l.batch;
-        l.output_cl    += l.outputs*l.batch;
-        l.cell_cl      += l.outputs*l.batch;*/
+        state.input_cl = clShiftMem(state.input_cl,l.inputs*l.batch);
+        l.output_cl    = clShiftMem(l.output_cl,l.outputs*l.batch);
+        l.cell_cl      = clShiftMem(l.cell_cl,l.outputs*l.batch);
 
         increment_layer(&wf, 1);
         increment_layer(&wi, 1);
@@ -777,20 +777,20 @@ void backward_lstm_layer_cl(layer l, network state)
     increment_layer(&ug, l.steps - 1);
     increment_layer(&uo, l.steps - 1);
 
-    //state.input_cl += l.inputs*l.batch*(l.steps - 1);
-    //if (state.delta_cl) state.delta_cl += l.inputs*l.batch*(l.steps - 1);
+    state.input_cl = clShiftMem(state.input_cl,l.inputs*l.batch*(l.steps - 1));
+    if (state.delta_cl) state.delta_cl = clShiftMem(state.delta_cl,l.inputs*l.batch*(l.steps - 1));
 
-    //l.output_cl += l.outputs*l.batch*(l.steps - 1);
-    //l.cell_cl += l.outputs*l.batch*(l.steps - 1);
-    //l.delta_cl += l.outputs*l.batch*(l.steps - 1);
+    l.output_cl = clShiftMem(l.output_cl,l.outputs*l.batch*(l.steps - 1));
+    l.cell_cl = clShiftMem(l.cell_cl,l.outputs*l.batch*(l.steps - 1));
+    l.delta_cl = clShiftMem(l.delta_cl,l.outputs*l.batch*(l.steps - 1));
 
     for (i = l.steps - 1; i >= 0; --i) {
-        if (i != 0) copy_cl(l.outputs*l.batch, l.cell_cl /*- l.outputs*l.batch*/, 1, l.prev_cell_cl, 1);
+        if (i != 0) copy_cl(l.outputs*l.batch, clShiftMem(l.cell_cl,-l.outputs*l.batch), 1, l.prev_cell_cl, 1);
         copy_cl(l.outputs*l.batch, l.cell_cl, 1, l.c_cl, 1);
-        if (i != 0) copy_cl(l.outputs*l.batch, l.output_cl /*- l.outputs*l.batch*/, 1, l.prev_state_cl, 1);
+        if (i != 0) copy_cl(l.outputs*l.batch, clShiftMem(l.output_cl,-l.outputs*l.batch), 1, l.prev_state_cl, 1);
         copy_cl(l.outputs*l.batch, l.output_cl, 1, l.h_cl, 1);
 
-        l.dh_cl = (i == 0) ? 0 : l.delta_cl /*- l.outputs*l.batch*/;
+        l.dh_cl = (i == 0) ? 0 : clShiftMem(l.delta_cl,-l.outputs*l.batch);
 
         copy_cl(l.outputs*l.batch, wf.output_cl, 1, l.f_cl, 1);			
         axpy_cl(l.outputs*l.batch, 1, uf.output_cl, 1, l.f_cl, 1);			
@@ -877,11 +877,11 @@ void backward_lstm_layer_cl(layer l, network state)
         mul_cl(l.outputs*l.batch, l.f_cl, 1, l.temp_cl, 1);				
         copy_cl(l.outputs*l.batch, l.temp_cl, 1, l.dc_cl, 1);				
 
-        //state.input_cl -= l.inputs*l.batch;
-        //if (state.delta_cl) state.delta_cl -= l.inputs*l.batch;
-        //l.output_cl -= l.outputs*l.batch;
-        //l.cell_cl -= l.outputs*l.batch;
-        //l.delta_cl -= l.outputs*l.batch;
+        state.input_cl = clShiftMem(state.input_cl,-l.inputs*l.batch);
+        if (state.delta_cl) state.delta_cl = clShiftMem(state.delta_cl,-l.inputs*l.batch);
+        l.output_cl = clShiftMem(l.output_cl,-l.outputs*l.batch);
+        l.cell_cl = clShiftMem(l.cell_cl,-l.outputs*l.batch);
+        l.delta_cl = clShiftMem(l.delta_cl,-l.outputs*l.batch);
 
         increment_layer(&wf, -1);
         increment_layer(&wi, -1);

@@ -527,23 +527,23 @@ void forward_region_layer_cl(const layer l, network net)
     for (b = 0; b < l.batch; ++b){
         for(n = 0; n < l.n; ++n){
             int index = entry_index(l, b, n*l.w*l.h, 0);
-            activate_array_cl(l.output_cl /*+ index*/, 2*l.w*l.h, LOGISTIC);
+            activate_array_cl(clShiftMem(l.output_cl,index), 2*l.w*l.h, LOGISTIC);
             if(l.coords > 4){
                 index = entry_index(l, b, n*l.w*l.h, 4);
-                activate_array_cl(l.output_cl /*+ index*/, (l.coords - 4)*l.w*l.h, LOGISTIC);
+                activate_array_cl(clShiftMem(l.output_cl,index), (l.coords - 4)*l.w*l.h, LOGISTIC);
             }
             index = entry_index(l, b, n*l.w*l.h, l.coords);
-            if(!l.background) activate_array_cl(l.output_cl /*+ index*/,   l.w*l.h, LOGISTIC);
+            if(!l.background) activate_array_cl(clShiftMem(l.output_cl,index),   l.w*l.h, LOGISTIC);
             index = entry_index(l, b, n*l.w*l.h, l.coords + 1);
-            if(!l.softmax && !l.softmax_tree) activate_array_cl(l.output_cl /*+ index*/, l.classes*l.w*l.h, LOGISTIC);
+            if(!l.softmax && !l.softmax_tree) activate_array_cl(clShiftMem(l.output_cl,index), l.classes*l.w*l.h, LOGISTIC);
         }
     }
     if (l.softmax_tree){
         int index = entry_index(l, 0, 0, l.coords + 1);
-        softmax_tree(net.input_cl /*+ index*/, l.w*l.h, l.batch*l.n, l.inputs/l.n, 1, l.output_cl /*+ index*/, *l.softmax_tree);
+        softmax_tree(clShiftMem(net.input_cl,index), l.w*l.h, l.batch*l.n, l.inputs/l.n, 1, clShiftMem(l.output_cl,index), *l.softmax_tree);
     } else if (l.softmax) {
         int index = entry_index(l, 0, 0, l.coords + !l.background);
-        softmax_cl(net.input_cl /*+ index*/, l.classes + l.background, l.batch*l.n, l.inputs/l.n, l.w*l.h, 1, l.w*l.h, 1, l.output_cl /*+ index*/);
+        softmax_cl(clShiftMem(net.input_cl,index), l.classes + l.background, l.batch*l.n, l.inputs/l.n, l.w*l.h, 1, l.w*l.h, 1, clShiftMem(l.output_cl,index));
     }
     if(!net.train || l.onlyforward){
         cl_pull_array(l.output_cl, l.output, l.batch*l.outputs);
@@ -563,13 +563,13 @@ void backward_region_layer_cl(const layer l, network net)
     for (b = 0; b < l.batch; ++b){
         for(n = 0; n < l.n; ++n){
             int index = entry_index(l, b, n*l.w*l.h, 0);
-            gradient_array_cl(l.output_cl /*+ index*/, 2*l.w*l.h, LOGISTIC, l.delta_cl /*+ index*/);
+            gradient_array_cl(clShiftMem(l.output_cl,index), 2*l.w*l.h, LOGISTIC, clShiftMem(l.delta_cl,index));
             if(l.coords > 4){
                 index = entry_index(l, b, n*l.w*l.h, 4);
-                gradient_array_cl(l.output_cl /*+ index*/, (l.coords - 4)*l.w*l.h, LOGISTIC, l.delta_cl /*+ index*/);
+                gradient_array_cl(clShiftMem(l.output_cl,index), (l.coords - 4)*l.w*l.h, LOGISTIC, clShiftMem(l.delta_cl,index));
             }
             index = entry_index(l, b, n*l.w*l.h, l.coords);
-            if(!l.background) gradient_array_cl(l.output_cl /*+ index*/,   l.w*l.h, LOGISTIC, l.delta_cl /*+ index*/);
+            if(!l.background) gradient_array_cl(clShiftMem(l.output_cl,index),   l.w*l.h, LOGISTIC, clShiftMem(l.delta_cl,index));
         }
     }
     axpy_cl(l.batch*l.inputs, 1, l.delta_cl, 1, net.delta_cl, 1);

@@ -314,18 +314,18 @@ void forward_local_layer_cl(const local_layer l, network net)
     int locations = out_h * out_w;
 
     for(i = 0; i < l.batch; ++i){
-        copy_cl(l.outputs, l.biases_cl, 1, l.output_cl /*+ i*l.outputs*/, 1);
+        copy_cl(l.outputs, l.biases_cl, 1, clShiftMem(l.output_cl,i*l.outputs), 1);
     }
 
     for(i = 0; i < l.batch; ++i){
-        cl_mem input = net.input_cl /*+ i*l.w*l.h*l.c*/;
+        cl_mem input = clShiftMem(net.input_cl,i*l.w*l.h*l.c);
         im2col_cl(input, l.c, l.h, l.w, 
                 l.size, l.stride, l.pad, net.workspace_cl);
-        cl_mem output = l.output_cl /*+ i*l.outputs*/;
+        cl_mem output = clShiftMem(l.output_cl,i*l.outputs);
         for(j = 0; j < locations; ++j){
-            cl_mem a = l.weights_cl /*+ j*l.size*l.size*l.c*l.n*/;
-            cl_mem b = net.workspace_cl /*+ j*/;
-            cl_mem c = output /*+ j*/;
+            cl_mem a = clShiftMem(l.weights_cl,j*l.size*l.size*l.c*l.n);
+            cl_mem b = clShiftMem(net.workspace_cl,j);
+            cl_mem c = clShiftMem(output,j);
 
             int m = l.n;
             int n = 1;
@@ -344,18 +344,18 @@ void backward_local_layer_cl(local_layer l, network net)
 
     gradient_array_cl(l.output_cl, l.outputs*l.batch, l.activation, l.delta_cl);
     for(i = 0; i < l.batch; ++i){
-        axpy_cl(l.outputs, 1, l.delta_cl /*+ i*l.outputs*/, 1, l.bias_updates_cl, 1);
+        axpy_cl(l.outputs, 1, clShiftMem(l.delta_cl,i*l.outputs), 1, l.bias_updates_cl, 1);
     }
 
     for(i = 0; i < l.batch; ++i){
-        cl_mem input = net.input_cl /*+ i*l.w*l.h*l.c*/;
+        cl_mem input = clShiftMem(net.input_cl,i*l.w*l.h*l.c);
         im2col_cl(input, l.c, l.h, l.w, 
                 l.size, l.stride, l.pad, net.workspace_cl);
 
         for(j = 0; j < locations; ++j){ 
-            cl_mem a = l.delta_cl /*+ i*l.outputs + j*/;
-            cl_mem b = net.workspace_cl /*+ j*/;
-            cl_mem c = l.weight_updates_cl /*+ j*l.size*l.size*l.c*l.n*/;
+            cl_mem a = clShiftMem(l.delta_cl,i*l.outputs + j);
+            cl_mem b = clShiftMem(net.workspace_cl,j);
+            cl_mem c = clShiftMem(l.weight_updates_cl,j*l.size*l.size*l.c*l.n);
             int m = l.n;
             int n = l.size*l.size*l.c;
             int k = 1;
@@ -365,9 +365,9 @@ void backward_local_layer_cl(local_layer l, network net)
 
         if(net.delta_cl){
             for(j = 0; j < locations; ++j){ 
-                cl_mem a = l.weights_cl /*+ j*l.size*l.size*l.c*l.n*/;
-                cl_mem b = l.delta_cl /*+ i*l.outputs + j*/;
-                cl_mem c = net.workspace_cl /*+ j*/;
+                cl_mem a = clShiftMem(l.weights_cl,j*l.size*l.size*l.c*l.n);
+                cl_mem b = clShiftMem(l.delta_cl,i*l.outputs + j);
+                cl_mem c = clShiftMem(net.workspace_cl,j);
 
                 int m = l.size*l.size*l.c;
                 int n = 1;
@@ -376,7 +376,7 @@ void backward_local_layer_cl(local_layer l, network net)
                 gemm_cl(1,0,m,n,k,1,a,m,b,locations,0,c,locations);
             }
 
-            col2im_cl(net.workspace_cl, l.c,  l.h,  l.w,  l.size,  l.stride, l.pad, net.delta_cl/*+i*l.c*l.h*l.w*/);
+            col2im_cl(net.workspace_cl, l.c,  l.h,  l.w,  l.size,  l.stride, l.pad, clShiftMem(net.delta_cl,i*l.c*l.h*l.w));
         }
     }
 }

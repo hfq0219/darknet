@@ -28,5 +28,6 @@ void cl_free(cl_mem x_cl);
 void cl_push_array(cl_mem x_cl, float *x, size_t n);
 void cl_pull_array(cl_mem x_cl, float *x, size_t n);
 float cl_mag_array(cl_mem x_cl, size_t n);
+cl_mem clShiftMem(cl_mem src,int size);
 
 #endif

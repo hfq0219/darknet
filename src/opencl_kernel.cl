@@ -1459,3 +1459,9 @@ __kernel void backward_maxpool_layer_opencl(int n, int in_h, int in_w, int in_c,
     }
     prev_delta[index] += d;
 }
+
+__kernel void shiftMem_opencl(__global float *src,int size)
+{
+    int i=get_global_id(0);
+    src=src+size;
+}

@@ -4,5 +4,7 @@
         "opencl_tool.h": "c",
         "blas.h": "c",
         "im2col.h": "c"
-    }
+    },
+    "python.pythonPath": "/home/fengqi/anaconda3/bin/python",
+    "python.linting.pylintEnabled": true
 }

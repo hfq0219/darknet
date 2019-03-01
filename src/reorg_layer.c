@@ -196,7 +196,7 @@ void forward_reorg_layer_cl(layer l, network net)
         }
     } else if (l.extra) {
         for(i = 0; i < l.batch; ++i){
-            copy_cl(l.inputs, net.input_cl /*+ i*l.inputs*/, 1, l.output_cl /*+ i*l.outputs*/, 1);
+            copy_cl(l.inputs, clShiftMem(net.input_cl,i*l.inputs), 1, clShiftMem(l.output_cl,i*l.outputs), 1);
         }
     } else if (l.reverse) {
         reorg_cl(net.input_cl, l.w, l.h, l.c, l.batch, l.stride, 1, l.output_cl);
@@ -216,7 +216,7 @@ void backward_reorg_layer_cl(layer l, network net)
     } else if (l.extra) {
         int i;
         for(i = 0; i < l.batch; ++i){
-            copy_cl(l.inputs, l.delta_cl /*+ i*l.outputs*/, 1, net.delta_cl /*+ i*l.inputs*/, 1);
+            copy_cl(l.inputs, clShiftMem(l.delta_cl,i*l.outputs), 1, clShiftMem(net.delta_cl,i*l.inputs), 1);
         }
     } else if(l.reverse){
         reorg_cl(l.delta_cl, l.w, l.h, l.c, l.batch, l.stride, 0, net.delta_cl);
